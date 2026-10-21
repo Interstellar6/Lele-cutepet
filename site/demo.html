@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>乐乐 · 演示</title>
+<style>
+  html,body{height:100%;margin:0;overflow:hidden;
+    font:13px/1.6 -apple-system,"PingFang SC",system-ui,sans-serif;color:#3f3a55;
+    background:radial-gradient(700px 420px at 20% -10%,#ffe3ee,transparent 62%),
+               radial-gradient(600px 400px at 90% 8%,#dfe8ff,transparent 62%),
+               linear-gradient(180deg,#fbf7ff,#ece7f7)}
+  #desk{position:fixed;left:0;right:0;bottom:0;height:26%;min-height:86px;
+    background:linear-gradient(180deg,#f7ecdf,#efdfcd);border-top:3px solid #e2cdb6}
+  #bar{position:fixed;left:10px;top:10px;z-index:5;display:flex;gap:6px;flex-wrap:wrap;
+    max-width:calc(100% - 20px)}
+  #bar button{
+    border:1px solid rgba(120,110,170,.22);background:rgba(255,255,255,.92);
+    color:#5a5470;border-radius:999px;padding:5px 10px;cursor:pointer;
+    font:600 11.5px/1 inherit;box-shadow:0 2px 8px rgba(60,50,90,.08);
+  }
+  #bar button:hover{color:#d93b6c;border-color:rgba(255,107,149,.5)}
+  #said{position:fixed;right:10px;top:10px;z-index:5;max-width:44%;
+    font-size:11.5px;color:#7a7396;text-align:right}
+  @media(max-width:430px){#said{display:none}}
+</style>
+</head>
+<body>
+<div id="desk"></div>
+<div id="bar">
+  <button data-a="pat">摸摸头</button>
+  <button data-a="hop">蹦一下</button>
+  <button data-a="sleep">睡一会儿</button>
+  <button data-a="talk">说句话</button>
+</div>
+<div id="said"></div>
+
+<script src="../assets/lele-pet.js"></script>
+<script>
+(function () {
+  /* 用查询参数控制，定制页的「参数面板」就是靠改这里 */
+  var q = new URLSearchParams(location.search);
+  var num = function (k, d) { var v = parseInt(q.get(k), 10); return isNaN(v) ? d : v; };
+  var bool = function (k, d) {
+    if (q.get(k) == null) return d;
+    return q.get(k) === '1' || q.get(k) === 'true';
+  };
+
+  var said = document.getElementById('said');
+  var LINES = ['今天也要开心呀', '要不要摸摸我的头？', '我在桌上等你', '写代码辛苦了'];
+
+  var pet = LelePet.mount({
+    base: '../assets/',
+    size: num('size', 230),
+    x: 0.72,
+    floor: '#desk',
+    roam: bool('roam', true),
+    sound: bool('sound', true),
+    dock: bool('dock', false),
+    greet: bool('greet', true),
+    posKey: null,
+    onSay: function (t) { said.textContent = '「' + t + '」'; }
+  });
+  window.demoPet = pet;
+
+  document.getElementById('bar').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var a = b.dataset.a;
+    pet.show();
+    if (a === 'pat') pet.pat(true);
+    else if (a === 'hop') pet.hop();
+    else if (a === 'sleep') pet.sleep();
+    else pet.say(LINES[(Math.random() * LINES.length) | 0], 3000);
+  });
+
+  /* 给父页面用：报告自己的尺寸（可选） */
+  window.addEventListener('resize', function () { pet._onResize && pet._onResize(); });
+})();
+</script>
+</body>
+</html>

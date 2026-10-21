@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C · Canvas：坐标、变换、画图 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>附录 C · Canvas 速成</h1>
+        <p class="lede">
+          Canvas 是新手最容易懵的地方，因为它和 HTML 的思维方式不一样：
+          <b>它不是「摆元素」，而是「在一张纸上画」。</b>
+        </p>
+
+        <h2>第一件事：它不是元素，是像素</h2>
+        <p>
+          你画上去的东西，浏览器只记得像素，不记得「这是一个圆」。
+          所以想动起来，<b>每一帧都得先擦干净、再重画一次</b>：
+        </p>
+<div class="codeblock"><pre data-label="js" class="lang-js">ctx.clearRect(0, 0, 宽, 高);   // 擦掉上一帧
+ctx.drawImage(skin, 0, 0, W, H);   // 画这一帧</pre></div>
+
+        <h2>坐标系：左上角是 (0, 0)，y 往下变大</h2>
+        <p>数学课上 y 往上，网页里 y 往下。记住这一条，很多「怎么反了」的问题就通了。</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">ctx.fillRect(0, 0, 50, 50);        // 左上角一个 50×50 的方块
+ctx.fillRect(100, 100, 50, 50);    // 右边 100、下边 100 的位置</pre></div>
+
+        <h2>尺寸要设两次</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">canvas.width  = W * DPR;            // 后备缓冲（真实像素）
+canvas.height = H * DPR;
+canvas.style.width  = W + 'px';     // 画在页面上的可见大小
+canvas.style.height = H + 'px';
+ctx.setTransform(DPR, 0, 0, DPR, 0, 0);   // 之后都按「逻辑像素」思考</pre></div>
+        <p>
+          只设第一个，图会被放大糊掉；只设第二个，会糊得不一样。
+          <code>DPR</code> 是屏幕像素比，Mac 上一般是 2。
+        </p>
+
+        <h2>核心门槛：translate / scale / rotate 变的是「坐标系」</h2>
+        <p>
+          它们不是「移动这个图形」，而是<b>把整张纸挪一下、缩放一下、转一下</b>，
+          之后画的所有东西都按新的坐标系来。用鼠标拖下面的滑块感受一下：
+        </p>
+
+        <div class="mini">
+          <canvas id="demo" width="340" height="240" aria-label="canvas 变换演示"></canvas>
+          <div class="ctrls">
+            <label>压扁 <input id="ds" type="range" min="55" max="140" value="100"></label>
+            <label>旋转 <input id="dr" type="range" min="-25" max="25" value="0"></label>
+            <label><input id="da" type="checkbox" checked> 以脚底中心为锚点</label>
+          </div>
+          <p class="note2">蓝点是锚点。压扁时勾不勾这个开关，看看脚有没有离开地面。</p>
+        </div>
+
+        <p>对应的代码就是这三行 —— 注意三条的顺序不能换：</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">ctx.translate(锚点x, 锚点y);      // ① 把原点搬到锚点
+ctx.rotate(旋转);                 // ② 转（绕着新原点 = 锚点）
+ctx.scale(横向缩放, 纵向缩放);     // ③ 缩放（也是绕锚点）
+ctx.translate(-图形宽/2, -图形高); // ④ 把图形摆回原点附近
+ctx.fillRect(0, 0, 图形宽, 图形高);</pre></div>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">只看一句话就够</span>
+            <b>锚点在哪，缩放和旋转就绕哪。</b>
+            桌宠把锚点放在脚底中心，所以压扁时脚不离地；
+            放正中间就会整个悬空 —— 上面那个开关就是在演示这件事。
+          </div>
+        </div>
+
+        <h2>save / restore：给坐标系做「存档」</h2>
+        <p>
+          改坐标系会影响后面画的所有东西。画完一个部件想回到原状，
+          就用 <code>save()</code> 存档、<code>restore()</code> 读档：
+        </p>
+<div class="codeblock"><pre data-label="js" class="lang-js">ctx.save();                       // 存一下当前坐标系/颜色/透明度
+ctx.translate(100, 100);
+ctx.rotate(0.5);
+ctx.fillRect(0, 0, 40, 40);        // 这些变换只影响这里
+ctx.restore();                     // 回到存的时候
+
+ctx.fillRect(0, 0, 40, 40);        // 又回到没变换的状态</pre></div>
+        <p class="muted small">
+          它是<b>栈</b>：可以连续 save 好几层，restore 一次退一层。
+          忘了 restore 是新手最常见的 bug（后面的东西全都歪了）。
+        </p>
+
+        <h2>drawImage：把图片画进去</h2>
+        <p>最常用的两个版本：</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">// 三参数：原图 → 目标位置（自动按原尺寸）
+ctx.drawImage(img, x, y);
+
+// 五参数：原图 → 目标位置 + 目标宽高（最常用，可以缩放）
+ctx.drawImage(img, x, y, 宽, 高);</pre></div>
+        <p>
+          本项目的眼睛就是五参数版：高度乘上「张眼程度」，就完成了眨眼（见
+          <a href="basics-js.html">附录 B</a> 之后的 <a href="step-4-blink.html">V2</a>）。
+        </p>
+
+        <h2>渐变：一条线都不用手画</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+g.addColorStop(0, 'rgba(70,60,95,.30)');   // 中心 30% 黑
+g.addColorStop(1, 'rgba(70,60,95,0)');     // 边缘透明
+ctx.fillStyle = g;
+ctx.beginPath();
+ctx.arc(cx, cy, r, 0, Math.PI * 2);
+ctx.fill();</pre></div>
+        <p>影子、腮红都是这么画出来的 —— 一个圆 + 一圈透明的渐变，比画贴图省事。</p>
+
+        <h2>合成模式：只画在「已有像素」上</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">ctx.globalCompositeOperation = 'source-atop';  // 只画在已有内容上
+// ……画腮红……
+ctx.globalCompositeOperation = 'source-over';  // 记得改回来</pre></div>
+        <p>
+          腮红要贴在猫脸上、又不能糊到画布空白处 —— 不用抠形状，换个模式就行。
+        </p>
+
+        <h2>动手改改看</h2>
+        <p>打开 <a href="../build/01-呼吸.html">build/01-呼吸.html</a>，找到这段，把 <code>PAD_T</code> 改成 0：</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">const PAD_T = Math.round(H * 0.32);   // 改成 0 试试：头顶会被裁掉</pre></div>
+        <p>刷新 —— 猫的耳朵不见了。这就是「画布要比角色大一圈」的原因。</p>
+
+        <div class="callout good">
+          <div class="ic">✅</div>
+          <div class="bd">
+            <span class="t">到这里 Canvas 就够用了</span>
+            本项目只用了这几个 API：<code>clearRect / drawImage / fillRect / arc /
+            translate / rotate / scale / save / restore / 渐变 / 合成模式</code>。
+            真的就这些。
+          </div>
+        </div>
+
+        <div class="pagefoot">
+          <p>下一页：<a href="basics-debug.html">调试 —— 报错怎么读，卡住了怎么办</a></p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+<script>
+/* 这一页自带的小演示：锚点 / 压扁 / 旋转 */
+(function () {
+  var cv = document.getElementById('demo');
+  if (!cv) return;
+  var g = cv.getContext('2d');
+  var DPR = Math.min(2, window.devicePixelRatio || 1);
+  var CW = 340, CH = 240;
+  cv.width = CW * DPR;
+  cv.height = CH * DPR;
+  cv.style.width = CW + 'px';
+  cv.style.height = CH + 'px';
+
+  var GROUND = 196;
+  var BOX = { w: 86, h: 104 };
+
+  var sy = 1, rot = 0, footAnchor = true;
+
+  var sEl = document.getElementById('ds');
+  var rEl = document.getElementById('dr');
+  var aEl = document.getElementById('da');
+
+  function draw() {
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    g.clearRect(0, 0, CW, CH);
+
+    /* 地面 */
+    g.fillStyle = '#f1f4fa';
+    g.fillRect(0, GROUND, CW, CH - GROUND);
+    g.strokeStyle = '#c9d5ff';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(0, GROUND + 0.5);
+    g.lineTo(CW, GROUND + 0.5);
+    g.stroke();
+
+    var sx = 1 + (1 - sy) * 0.6;
+    var cx = CW / 2;
+
+    g.save();
+    if (footAnchor) {
+      g.translate(cx, GROUND);          // 锚点 = 脚底中心
+      g.rotate(rot);
+      g.scale(sx, sy);
+      g.translate(-BOX.w / 2, -BOX.h);
+    } else {
+      g.translate(cx, GROUND - BOX.h / 2);   // 锚点 = 身体中心
+      g.rotate(rot);
+      g.scale(sx, sy);
+      g.translate(-BOX.w / 2, -BOX.h / 2);
+    }
+
+    g.fillStyle = '#ffe1ea';
+    g.strokeStyle = '#ff4d79';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.rect(0, 0, BOX.w, BOX.h);
+    g.fill();
+    g.stroke();
+
+    g.fillStyle = '#c2185b';
+    g.font = '700 13px -apple-system, "PingFang SC", system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('角色', BOX.w / 2, BOX.h / 2);
+    g.restore();
+
+    /* 锚点标记 */
+    var ay = footAnchor ? GROUND : GROUND - BOX.h / 2;
+    g.beginPath();
+    g.arc(cx, ay, 4.5, 0, Math.PI * 2);
+    g.fillStyle = '#4d6bfe';
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeStyle = '#fff';
+    g.stroke();
+    g.fillStyle = '#2f4be0';
+    g.font = '700 11px -apple-system, "PingFang SC", system-ui, sans-serif';
+    g.textAlign = 'left';
+    g.fillText('锚点', cx + 9, ay - 7);
+  }
+
+  sEl.addEventListener('input', function () { sy = sEl.value / 100; draw(); });
+  rEl.addEventListener('input', function () { rot = rEl.value / 100; draw(); });
+  aEl.addEventListener('change', function () { footAnchor = aEl.checked; draw(); });
+
+  draw();
+})();
+</script>
+</body>
+</html>

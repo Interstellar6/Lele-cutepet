@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>乐乐桌宠 · 交互冒烟测试</title></head>
+<body style="margin:0;font:13px ui-monospace,Menlo,monospace">
+<script src="../assets/lele-pet.js"></script>
+<script>
+/* 交互冒烟测试：用合成 PointerEvent 走一遍
+   拖动 → 甩出 → 落地 → 单击 → 抚摸 → 睡觉 → 唤醒 → 改尺寸 → 隐藏/显示 → 视线跟随
+   时间轴自己推（pet.paused + 手动 pet.update(dt)），不依赖浏览器帧率，
+   这样用 chrome --dump-dom 就能拿到确定性结果。 */
+var log = [], pet = null, FLOOR = 460;
+
+function rec(k, v) { log.push(k + ': ' + (typeof v === 'object' ? JSON.stringify(v) : v)); }
+function hit(x, y, type) {
+  pet.hit.dispatchEvent(new PointerEvent(type, {
+    pointerId: 1, bubbles: true, cancelable: true,
+    clientX: x, clientY: y, pointerType: 'mouse', isPrimary: true
+  }));
+}
+function move(x, y) { window.dispatchEvent(new PointerEvent('pointermove', {
+  pointerId: 1, bubbles: true, clientX: x, clientY: y, pointerType: 'mouse', isPrimary: true })); }
+function center() {
+  var r = pet.root.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height * 0.7 };
+}
+/* 推时间：每步 1/60 秒 */
+function sim(sec, cb) {
+  var step = 1 / 60, n = Math.round(sec / step);
+  for (var i = 0; i < n; i++) {
+    pet.t += step;
+    if (cb) cb(i, (i + 1) * step);
+    pet.update(step);
+  }
+}
+
+pet = LelePet.mount({
+  base: '../assets/', size: 200, floor: function () { return FLOOR; },
+  posKey: null, greet: false, sound: false, roam: false, x: 400, dock: true
+});
+
+function when(pred, ms) {
+  return new Promise(function (res, rej) {
+    var t = Date.now();
+    (function poll() {
+      if (pred()) return res();
+      if (Date.now() - t > ms) return rej(new Error('timeout waiting'));
+      setTimeout(poll, 40);
+    })();
+  });
+}
+
+when(function () { return pet.ready; }, 8000).then(function () {
+  pet.paused = true;                  // 自己控制时间轴
+  rec('mode', pet.mode);
+  rec('geom', { w: pet.w, h: pet.h, padX: pet.padX, padT: pet.padT, padB: pet.padB, cw: pet.cw, ch: pet.ch });
+  rec('start', { x: Math.round(pet.x), y: Math.round(pet.y), floorY: Math.round(pet.floorY()), state: pet.state });
+  rec('dock', !!pet.dock);
+
+  /* ── 1) 拎起来往左上拖 ───────────────────────────── */
+  var c = center();
+  hit(c.x, c.y, 'pointerdown');
+  sim(0.05);
+  for (var i = 1; i <= 6; i++) {
+    hit(c.x - i * 40, c.y - i * 12, 'pointermove');
+    sim(1 / 60);
+  }
+  rec('dragging', { state: pet.state, x: Math.round(pet.x), y: Math.round(pet.y), target: pet.dragTarget && Math.round(pet.dragTarget.x) });
+
+  /* ── 2) 快速甩出去 ──────────────────────────────── */
+  hit(c.x - 240, c.y - 72, 'pointerup');
+  rec('thrown', { state: pet.state, vx: Math.round(pet.vx), vy: Math.round(pet.vy), bubble: pet.bubbleEl.textContent });
+  var minY = 1e9, bounces = 0, lastVy = pet.vy;
+  sim(3.0, function () {
+    minY = Math.min(minY, pet.y);
+    if (lastVy > 200 && pet.vy < 0) bounces++;
+    lastVy = pet.vy;
+  });
+  rec('flight', { state: pet.state, minY: Math.round(minY), bounces: bounces,
+    y: Math.round(pet.y), floorY: Math.round(pet.floorY()), settled: Math.abs(pet.y - pet.floorY()) < 1 });
+
+  /* ── 3) 单击一下 ───────────────────────────────── */
+  var c2 = center();
+  hit(c2.x, c2.y, 'pointerdown'); sim(0.04); hit(c2.x, c2.y, 'pointerup'); sim(0.12);
+  rec('click', { emote: pet.emote && pet.emote.name, bubble: pet.bubbleEl.textContent,
+    bubbleVisible: pet.bubbleEl.className.indexOf('lele-on') >= 0 });
+
+  /* ── 4) 在它身上来回抚摸 ────────────────────────── */
+  sim(3.0);                          // 等 patCool 归零
+  pet.blush = 0; pet.blushTarget = 0;
+  for (var k = 0; k < 8; k++) { hit(c2.x + (k % 2 ? -60 : 60), c2.y, 'pointermove'); sim(0.03); }
+  sim(0.2);
+  rec('pat', { blush: +pet.blush.toFixed(2), blushTarget: pet.blushTarget, squash: !!pet.squash,
+    emote: pet.emote && pet.emote.name, bubble: pet.bubbleEl.textContent });
+
+  /* ── 5) 睡着 → 点醒 ────────────────────────────── */
+  pet.sleep(); sim(4.0);
+  rec('asleep', { state: pet.state, blink: +pet.blink.toFixed(2), zzz: pet.particles.filter(function (q) { return q.type === 'zzz'; }).length });
+  var c3 = center();
+  hit(c3.x, c3.y, 'pointerdown'); sim(0.05); hit(c3.x, c3.y, 'pointerup'); sim(0.1);
+  rec('wake', { state: pet.state, blink: +pet.blink.toFixed(2), bubble: pet.bubbleEl.textContent });
+
+  /* ── 6) 改尺寸 / 隐藏 / 显示 ────────────────────── */
+  pet.setSize(320); sim(0.1);
+  rec('resize', { w: pet.w, h: pet.h, cw: pet.cw, ch: pet.ch, y: Math.round(pet.y), floorY: Math.round(pet.floorY()) });
+  pet.hide();
+  var d1 = getComputedStyle(pet.root).display;
+  pet.show(); sim(0.05);
+  rec('hide/show', { hidden: d1, shown: getComputedStyle(pet.root).display, running: !pet.paused });
+
+  /* ── 7) 眼睛跟着指针 ───────────────────────────── */
+  move(40, 80); sim(0.6);
+  var g1 = { x: +pet.gaze.x.toFixed(1), y: +pet.gaze.y.toFixed(1) };
+  move(window.innerWidth - 20, window.innerHeight - 20); sim(0.6);
+  var g2 = { x: +pet.gaze.x.toFixed(1), y: +pet.gaze.y.toFixed(1) };
+  rec('gaze', { toTopLeft: g1, toBottomRight: g2, follows: g1.x < g2.x && g1.y < g2.y });
+
+  /* ── 8) 散步 / 睡着超时 ────────────────────────── */
+  pet.walkTo(120);
+  sim(4.0);
+  rec('walk', { walkTarget: pet.walkTarget, x: Math.round(pet.x) });
+
+  /* ── 9) 自动待机调度（长时间不管它） ────────────── */
+  var saidBefore = pet.bubbleEl.textContent;
+  pet.idleAt = pet.t;
+  sim(90);
+  rec('idle90s', { state: pet.state, blink: +pet.blink.toFixed(2) });
+
+  rec('particles', pet.particles.length);
+  finish();
+})['catch'](function (e) { rec('ERROR', (e && e.stack) || String(e)); finish(); });
+
+function finish() {
+  var pre = document.createElement('pre');
+  pre.id = 'out';
+  pre.textContent = log.join('\n');
+  document.body.appendChild(pre);
+  document.title = 'DONE';
+}
+</script>
+</body>
+</html>

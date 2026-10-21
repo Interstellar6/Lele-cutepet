@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>这只桌宠长什么样 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>把一张表情包，做成一只桌宠</h1>
+        <p class="lede">
+          一只会呼吸、会眨眼、眼睛跟着鼠标转、能摸能拖能甩飞的猫。
+          全程只用<b>一张静态图</b>，不需要美术资源，也不需要装任何东西。
+        </p>
+
+        <div class="demo">
+          <div class="bar"><span class="dot"></span><b>活的</b>· 随便点随便拖
+            <span class="spacer"></span>
+            <a href="demo.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+          </div>
+          <iframe src="demo.html?size=230" height="400" title="乐乐桌宠演示"></iframe>
+          <div class="cap">点它一下、在它身上来回划、按住拖动、快速甩出去 —— 都能玩。</div>
+        </div>
+
+        <h2>你会做出这四样东西</h2>
+        <div class="cards">
+          <div class="card">
+            <span class="k">1</span>
+            <h3>眨眼</h3>
+            <p>不是播放动画，是把眼睛单独拆出来、压扁再放开。</p>
+          </div>
+          <div class="card">
+            <span class="k">2</span>
+            <h3>盯着你</h3>
+            <p>眼球朝鼠标方向平移几个像素，空出来的地方露出眼窝。</p>
+          </div>
+          <div class="card">
+            <span class="k">3</span>
+            <h3>能摸能拖能甩</h3>
+            <p>弹簧跟随、抛物线、弹跳、落地挤压，全在几十行里。</p>
+          </div>
+          <div class="card">
+            <span class="k">4</span>
+            <h3>台词气泡</h3>
+            <p>点它、摸它、无聊时它自己说话，配 WebAudio 合成的喵。</p>
+          </div>
+          <div class="card">
+            <span class="k">5</span>
+            <h3>放到桌面上</h3>
+            <p>一个 1MB 的原生小窗，透明、总在最前、点它也抢不走焦点。<a href="desktop.html">怎么做 →</a></p>
+          </div>
+        </div>
+
+        <h2>怎么学：两段，五个版本</h2>
+        <p>
+          前两步做素材（Python，一条命令），后面五步写代码。
+          <b>每个版本都是一个完整文件</b>：整段复制 → 覆盖上一版 → 双击打开，
+          就能看到进度。不用在几百行里找「该粘哪一行」。
+        </p>
+
+        <div class="tw">
+          <table>
+            <tr><th>步骤</th><th>你会得到</th><th>代码量</th></tr>
+            <tr><td><a href="step-1-cut.html">1 · 抠图</a></td><td>只有猫、背景透明的 PNG</td><td>—</td></tr>
+            <tr><td><a href="step-2-eye.html">2 · 拆眼睛</a></td><td>「皮」+ 两只眼睛贴片</td><td>—</td></tr>
+            <tr><td><a href="step-3-draw.html">V1 · 呼吸</a></td><td>站在桌上、会呼吸、点一下挤压</td><td>191 行</td></tr>
+            <tr><td><a href="step-4-blink.html">V2 · 眨眼</a></td><td>它会自己眨眼了</td><td>234 行</td></tr>
+            <tr><td><a href="step-5-gaze.html">V3 · 盯着你</a></td><td>眼睛跟着鼠标转</td><td>271 行</td></tr>
+            <tr><td><a href="step-6-touch.html">V4 · 回应你</a></td><td>点它有反应、摸它会打呼噜</td><td>455 行</td></tr>
+            <tr><td><a href="step-7-physics.html">V5 · 拖拽甩飞</a></td><td>能拎起来、能甩出去、会弹</td><td>629 行</td></tr>
+            <tr><td><a href="desktop.html">8 · 装到桌面上</a></td><td>透明浮窗、总在最前、不抢焦点</td><td>+430 行 Swift</td></tr>
+          </table>
+        </div>
+
+        <div class="callout tip">
+          <div class="ic">📋</div>
+          <div class="bd">
+            <span class="t">每一版都能单独跑</span>
+            五个版本互不依赖，你直接从
+            <a href="step-7-physics.html">V5</a> 开始抄也完全可以。
+            但按顺序走一遍，你会清楚每一行是为什么加的。
+          </div>
+        </div>
+
+        <h2>需要准备什么</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="c1"><label for="c1">一张角色图，<b>背景尽量是纯色或均匀渐变</b></label></li>
+          <li><input type="checkbox" id="c2"><label for="c2">Python 3.9+（只用来做素材，浏览器端不需要 Python）</label></li>
+          <li><input type="checkbox" id="c3"><label for="c3">装两个库：<code>pip install pillow numpy</code></label></li>
+          <li><input type="checkbox" id="c4"><label for="c4">一个现代浏览器（Chrome / Edge / Safari / Firefox 都行）</label></li>
+          <li><input type="checkbox" id="c5"><label for="c5"><b>不需要前端基础</b> —— 完全没写过网页，先看 <a href="basics-html.html">附录 A</a>～<a href="basics-debug.html">D</a></label></li>
+        </ul>
+        <p class="done-count"></p>
+
+        <div class="callout warn">
+          <div class="ic">⚠️</div>
+          <div class="bd">
+            <span class="t">关于背景</span>
+            自动抠图只认「角色 + 干净背景」。如果你手上是<b>截图</b>（带文字、卡片、UI），
+            先裁到角色再抠，或者用 <code>rembg</code> 出一张蒙版 —— 第 1 步最后有具体做法。
+          </div>
+        </div>
+
+        <h2>不想动手，只想用</h2>
+        <p>
+          打开 <a href="../index.html">成品页</a> 直接玩。
+          想嵌到自己网页里，把 <code>assets/</code> 复制走，两行代码挂上去 ——
+          写法在 <a href="customize.html">换成你的图 · 调参</a>，
+          那里还有一个拖滑块就能生成代码的面板。
+        </p>
+
+        <div class="pagefoot">
+          <p><b>本教程的源码就是它自己。</b>每一个示例页都能单独打开、直接看源码改。</p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

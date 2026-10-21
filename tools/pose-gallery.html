@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>乐乐 · 姿态校验（开发用）</title>
+<style>
+  html,body{margin:0;height:100%;background:#f2eef8;font:12px/1.4 -apple-system,system-ui,sans-serif;color:#5a5470}
+  .cell{position:absolute;width:240px;text-align:center}
+  .cell b{position:absolute;left:0;right:0;bottom:-4px;font-weight:600;color:#7a7396}
+  .cell i{position:absolute;left:0;right:0;top:-14px;font-style:normal;opacity:.55}
+  .floor{position:absolute;left:0;right:0;height:1px;background:rgba(120,110,150,.18)}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../assets/lele-pet.js"></script>
+<script>
+/* 每一格：固定好一个姿态，暂停动画，画一帧，方便用截图肉眼校验 */
+var POSES = [
+  ['待机',            function (p) {}],
+  ['眨眼',            function (p) { p.blink = 1; }],
+  ['眯眼笑',          function (p) { p.blink = 0.45; }],
+  ['看左边',          function (p) { p.gaze.x = -13; p.gaze.y = -4; }],
+  ['看右下',          function (p) { p.gaze.x = 12; p.gaze.y = 8; }],
+  ['腮红',            function (p) { p.blush = 1; p.blushTarget = 1; }],
+  ['开心',            function (p) { p.emote = { name: 'joy', t: 0.32, dur: 1.2 }; p.blush = .8; }],
+  ['害羞',            function (p) { p.emote = { name: 'shy', t: 0.5, dur: 1.5 }; }],
+  ['生气',            function (p) { p.emote = { name: 'angry', t: 0.2, dur: 1.1 }; p.blink = .25; }],
+  ['惊讶',            function (p) { p.emote = { name: 'surprise', t: 0.3, dur: 0.9 }; }],
+  ['落地挤压',        function (p) { p.squash = { t: 0.12, dur: 0.34, amp: 0.55 }; }],
+  ['翻跟头',          function (p) { p.emote = { name: 'spin', t: 0.45, dur: 1.0 }; }],
+  ['被拎起来',        function (p) { p.state = 'drag'; p.vy = 900; p.rot = 0.22; p.gaze.y = -9; }],
+  ['睡着',            function (p) { p.state = 'sleep'; p.blink = 0.97; }],
+  ['爱心粒子',        function (p) { p.spawn('heart', 6, { y: 60 }); p.particles.forEach(function (q, i) { q.y = 40 + i * 14; q.x = 40 + i * 26; q.life = q.max; }); }],
+  ['星星连击',        function (p) { p.spawn('star', 3, { y: 70 }); p.spawn('zzz', 2); p.particles.forEach(function (q, i) { q.y = 50 + i * 20; q.x = 50 + i * 30; q.life = q.max; }); }]
+];
+
+var COLS = 6, CW = 250, CH = 330, OX = 30, OY = 70;
+var stage = document.getElementById('stage');
+var pets = [];
+
+POSES.forEach(function (item, i) {
+  var col = i % COLS, row = (i / COLS) | 0;
+  var fx = OX + col * CW, fy = OY + row * CH + 250;
+
+  var cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.style.cssText = 'left:' + fx + 'px;top:' + (fy - 250) + 'px;height:250px';
+  cell.innerHTML = '<b>' + item[0] + '</b><i>#' + i + '</i>';
+  stage.appendChild(cell);
+  var fl = document.createElement('div');
+  fl.className = 'floor';
+  fl.style.top = (fy - 0) + 'px';
+  stage.appendChild(fl);
+
+  var pet = new LelePet({
+    base: '../assets/',
+    size: 150,
+    x: fx + CW / 2 - 15,
+    posKey: null,
+    greet: false,
+    sound: false,
+    roam: false,
+    floor: function () { return fy; }
+  });
+  pets.push({ pet: pet, paint: item[1] });
+});
+
+Promise.all(pets.map(function (o) {
+  return o.pet.mount().then(function () {
+    o.pet.paused = true;
+    o.paint(o.pet);
+    o.pet.draw();
+    window.__ready = true;
+  });
+})).then(function () { document.title = 'READY'; });
+</script>
+</body>
+</html>

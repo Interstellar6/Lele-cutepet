@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A · HTML / CSS：结构与摆放 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>附录 A · HTML / CSS 速成</h1>
+        <p class="lede">
+          没写过网页也能看懂：这一页只讲本项目用到的那些，其余的不用管。
+          <b>HTML 管结构，CSS 管摆放。</b>
+        </p>
+
+        <div class="learn">
+          <span class="ic">📌</span>
+          <div><b>读法建议：</b>先扫一眼，遇到不懂的再回来查。
+            教程里出现陌生的写法时，每一页都会用这个小蓝框把你指回来。</div>
+        </div>
+
+        <h2>HTML：它就是个「盒子嵌套」</h2>
+        <p>所有网页都是这样一层套一层。本项目第 1 版的结构只有四个盒子：</p>
+
+<div class="codeblock"><pre data-label="01-呼吸.html" class="lang-html">&lt;div id="desk"&gt;&lt;/div&gt;              &lt;!-- 桌子 --&gt;
+&lt;div id="stage"&gt;                    &lt;!-- 舞台：装着猫 --&gt;
+  &lt;canvas id="c"&gt;&lt;/canvas&gt;           &lt;!-- 画布：猫画在这里面 --&gt;
+  &lt;div id="hit"&gt;&lt;/div&gt;               &lt;!-- 命中区：接鼠标点击 --&gt;
+&lt;/div&gt;
+&lt;p id="tip"&gt;第 1 版 · 点它一下会挤压&lt;/p&gt;</pre></div>
+
+        <div class="tw">
+          <table>
+            <tr><th>你看到的</th><th>叫什么</th><th>说明</th></tr>
+            <tr><td><code>&lt;div&gt;</code></td><td>标签（tag）</td><td>一个方块，什么都不会显示，用来装东西</td></tr>
+            <tr><td><code>id="c"</code></td><td>属性（attribute）</td><td>给这个盒子起个唯一的名字，JS 靠它找到它</td></tr>
+            <tr><td><code>&lt;!-- … --&gt;</code></td><td>注释</td><td>不会显示，写给人看</td></tr>
+            <tr><td><code>&lt;canvas&gt;</code></td><td>画布</td><td>特殊盒子，可以在里面画像素</td></tr>
+          </table>
+        </div>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t"><code>id</code> 和 <code>class</code> 的区别</span>
+            <code>id</code> 全页只能有一个，JS 用 <code>getElementById('c')</code> 取；
+            <code>class</code> 可以贴在很多元素上，CSS 用它来批量套样式。
+          </div>
+        </div>
+
+        <h2>CSS：一条规则 = 选中谁 + 怎么摆</h2>
+
+<div class="codeblock"><pre data-label="01-呼吸.html 里的样式" class="lang-css">#desk {
+  position: fixed;          /* 固定贴在窗口上，滚动也不动 */
+  left: 0; right: 0;        /* 左右都拉到边 = 占满宽度 */
+  bottom: 0;                /* 贴住窗口底部 */
+  height: 22vh;             /* 高度 = 窗口高度的 22% */
+  background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+}</pre></div>
+
+        <p>
+          <code>#desk</code> 就是「选中 id 叫 desk 的那个元素」（<code>#</code> 表示 id）。
+          大括号里一行一个属性，<code>属性: 值;</code>。
+        </p>
+
+        <h3>单位：px / % / vh</h3>
+        <div class="tw">
+          <table>
+            <tr><th>写法</th><th>意思</th><th>用在哪儿</th></tr>
+            <tr><td><code>220px</code></td><td>220 个像素，绝对大小</td><td>角色多宽、留白多少</td></tr>
+            <tr><td><code>22%</code></td><td>父盒子的 22%</td><td>——</td></tr>
+            <tr><td><code>22vh</code></td><td>窗口高度的 22%（v = viewport）</td><td>桌子占多高</td></tr>
+            <tr><td><code>0.32</code>（在 JS 里乘）</td><td>比例，跟着尺寸变</td><td>留白 = 身高 × 0.32</td></tr>
+          </table>
+        </div>
+
+        <h2>定位：为什么猫能浮在桌子上</h2>
+        <p><code>position</code> 决定一个盒子怎么摆。本项目只用了三种：</p>
+        <div class="tw">
+          <table>
+            <tr><th>取值</th><th>行为</th><th>本项目用在哪</th></tr>
+            <tr><td><code>static</code>（默认）</td><td>按顺序往下排</td><td>文字、段落</td></tr>
+            <tr><td><code>fixed</code></td><td>钉在窗口上，不随滚动</td><td>桌子、舞台、提示文字</td></tr>
+            <tr><td><code>absolute</code></td><td>钉在最近的 <code>position</code> 祖先上</td><td>命中区、气泡（相对舞台定位）</td></tr>
+          </table>
+        </div>
+
+        <div class="callout warn">
+          <div class="ic">⚠️</div>
+          <div class="bd">
+            <span class="t">最容易踩的坑</span>
+            一个 <code>absolute</code> 的元素，会相对<b>最近的已定位祖先</b>定位。
+            父元素没写 <code>position</code> 的话，它会跑去找更外层，位置就莫名其妙了。
+            本项目的 <code>#stage</code> 写了 <code>position: fixed</code>,
+            所以里面的气泡和命中区都老老实实跟着它。
+          </div>
+        </div>
+
+        <h2>transform：移动 / 缩放 / 旋转</h2>
+        <p>
+          本项目的舞台用 <code>transform</code> 来移动，而不是改 <code>left/top</code>：
+        </p>
+<div class="codeblock"><pre data-label="js" class="lang-js">stage.style.transform = 'translate3d(' + x + 'px,' + y + 'px, 0)';</pre></div>
+        <div class="tw">
+          <table>
+            <tr><th></th><th>改 <code>left/top</code></th><th>改 <code>transform</code></th></tr>
+            <tr><td>浏览器要做什么</td><td>重新算整个页面的排版</td><td>只挪动这一层（走 GPU 合成）</td></tr>
+            <tr><td>每帧都改</td><td>会卡</td><td>很顺</td></tr>
+            <tr><td>和 CSS 动画叠加</td><td>容易打架</td><td>互不干扰</td></tr>
+          </table>
+        </div>
+        <p class="muted small">
+          所以你会在桌宠、地图、动画里到处看到 <code>transform</code>。
+          另外它<b>不影响其他元素的排版</b>，挪走以后原来占的位置还在。
+        </p>
+
+        <h2>transition：让状态变化「滑」过去</h2>
+        <p>气泡就是靠这个「弹出来」的，一行 CSS 换来手感：</p>
+<div class="codeblock"><pre data-label="css" class="lang-css">#bubble {
+  opacity: 0;                                        /* 默认透明 */
+  transform: translate(-50%, 6px) scale(.86);        /* 默认小一点、低一点 */
+  transition: opacity .16s, transform .22s cubic-bezier(.2, 1.5, .4, 1);
+}
+#bubble.on {
+  opacity: 1;                                        /* 加上 on 类就显示 */
+  transform: translate(-50%, -2px) scale(1);
+}</pre></div>
+        <p>
+          JS 只负责 <code>classList.add('on')</code>，剩下的过渡浏览器帮你算。
+          <code>cubic-bezier(.2,1.5,.4,1)</code> 就是那个「弹一下」的感觉。
+        </p>
+
+        <h2>z-index：谁压着谁</h2>
+        <p>
+          数字大的在上面。本项目的 <code>#desk</code> 是 <code>z-index:1</code>，
+          舞台没写 z-index 但在 DOM 里排在后面，所以猫压在桌子上。
+          桌宠组件用的是 <code>2147483000</code> —— 一个「不会被人盖住」的夸张数字。
+        </p>
+
+        <h2>动手改改看</h2>
+        <p>打开 <a href="../build/01-呼吸.html">build/01-呼吸.html</a>，按 F12 打开开发者工具，在 Elements 面板里：</p>
+        <ol>
+          <li>选中 <code>#desk</code>，把 <code>height: 22vh</code> 改成 <code>40vh</code> —— 桌子变高，猫不变；</li>
+          <li>选中 <code>#stage</code>，给它加一条 <code>filter: blur(2px)</code> —— 整只猫跟着糊（因为 canvas 在它里面）；</li>
+          <li>选中 <code>#tip</code>，改文字看看。</li>
+        </ol>
+        <p class="muted small">改完刷新就还原了，随便试，不会弄坏东西。</p>
+
+        <div class="pagefoot">
+          <p>下一页：<a href="basics-js.html">JavaScript —— 让它动起来的语言</a></p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

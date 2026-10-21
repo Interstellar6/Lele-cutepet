@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6. 换成你的图 · 调参 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 6 步 · 换成你的图 · 调参</h1>
+        <p class="lede">
+          从这一页起，你不需要懂前面的原理了 ——
+          <b>换三个常量、拖几个滑块</b>，就是另一只桌宠。
+        </p>
+
+        <h2>换成你的图：三步</h2>
+        <ol class="steps">
+          <li>
+            <h3>拆素材</h3>
+            <p>用第 1、2 步的命令，把新图拆成四张 PNG。别忘了先 <code>--grid</code> 量眼睛。</p>
+          </li>
+          <li>
+            <h3>抄常量</h3>
+            <p>打开它生成的 <code>pet.json</code>，把 <code>size</code> 和两个 <code>box</code> 抄进你的 JS 顶部：</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">const SPRITE = { w: 811, h: 792 };                            // ← 换掉它
+const EYES = {
+  l: { box: [154, 156, 362, 352] },                          // ← 换掉它
+  r: { box: [521, 176, 709, 360] }                           // ← 换掉它
+};
+const CHEEKS = [{ x: 186, y: 356, r: 96 }, { x: 672, y: 372, r: 92 }];  // 腮红，看着调</pre></div>
+          </li>
+          <li>
+            <h3>改台词</h3>
+            <p>见下面「改台词」一节。改完刷新页面就生效。</p>
+          </li>
+        </ol>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">只有这三组常量跟「是哪只动物」有关</span>
+            其余代码（眨眼、视线、物理、台词调度）全都是通用的，一行都不用改。
+          </div>
+        </div>
+
+        <h2>调参：拖一下就有</h2>
+        <p>下面的面板改的是真实运行的那一只，右边的代码也会跟着变 —— 复制走就能用。</p>
+
+        <div class="panel">
+          <h3>参数</h3>
+          <div class="row"><label for="pSize">大小</label>
+            <input type="range" id="pSize" min="110" max="340" step="2" value="200">
+            <span class="val" id="vSize">200</span>
+          </div>
+          <div class="row"><label for="pRoam">自己散步</label>
+            <input type="checkbox" id="pRoam" checked>
+            <span class="muted small" style="margin-left:6px">会自己走到别的地方</span>
+          </div>
+          <div class="row"><label for="pSound">音效</label>
+            <input type="checkbox" id="pSound" checked>
+            <span class="muted small" style="margin-left:6px">点它 / 摸它会响</span>
+          </div>
+          <div class="row"><label for="pDock">悬停按钮</label>
+            <input type="checkbox" id="pDock">
+            <span class="muted small" style="margin-left:6px">摸摸 / 跳跳 / 睡吧 / 隐藏</span>
+          </div>
+          <div class="presets">
+            <button type="button" data-preset="min">最小可用</button>
+            <button type="button" data-preset="rec" class="on">推荐</button>
+            <button type="button" data-preset="full">满配</button>
+          </div>
+        </div>
+
+        <div class="demo">
+          <div class="bar"><span class="dot"></span><b>实时预览</b>
+            <span class="spacer"></span>
+            <a id="demoLink" href="demo.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+          </div>
+          <iframe id="preview" src="demo.html?size=200&amp;roam=1&amp;sound=1&amp;dock=0" height="380" title="参数预览"></iframe>
+        </div>
+
+<div class="codeblock"><pre data-label="复制这段" id="snippet" class="lang-html"></pre></div>
+
+        <h2>改台词</h2>
+        <p>
+          所有台词都在一个对象里，按场景分组。传进 <code>lines</code> 就覆盖，
+          没传的沿用默认。
+        </p>
+<div class="codeblock"><pre data-label="js" class="lang-js">LelePet.mount({
+  base: 'assets/',
+  lines: {
+    poke: ['别戳我！', '喵？'],          // 点它一下
+    pat:  ['呼噜呼噜…', '再来'],         // 摸它
+    sleep:['Zzz…', '困了'],             // 睡着
+    idle: ['该休息啦', '记得存盘']        // 没人理它时自言自语
+  }
+});
+
+// 可以改的 key：
+// hello poke happy shy angry giggle pat drag fly land sleep wake idle</pre></div>
+
+        <h2>参数速查</h2>
+        <div class="tw">
+          <table>
+            <tr><th>选项</th><th>默认</th><th>说明</th></tr>
+            <tr><td><code>base</code></td><td>脚本同目录</td><td>素材文件夹</td></tr>
+            <tr><td><code>size</code></td><td>210</td><td>显示宽度（px）</td></tr>
+            <tr><td><code>x</code></td><td>0.78</td><td>初始位置：0~1 当比例，&gt;1 当像素</td></tr>
+            <tr><td><code>floor</code></td><td>视口底部</td><td>站在哪条线上：数字 / 函数 / 选择器 / 元素</td></tr>
+            <tr><td><code>roam</code></td><td>true</td><td>自己散步</td></tr>
+            <tr><td><code>sound</code> / <code>volume</code></td><td>true / 0.3</td><td>音效与音量</td></tr>
+            <tr><td><code>dock</code></td><td>false</td><td>悬停小工具条</td></tr>
+            <tr><td><code>greet</code></td><td>true</td><td>出现时打招呼</td></tr>
+            <tr><td><code>fixed</code></td><td>true</td><td>false = 随文档滚动</td></tr>
+            <tr><td><code>posKey</code></td><td>'lele-pet-pos'</td><td>位置记忆；null = 不记</td></tr>
+            <tr><td><code>zIndex</code></td><td>2147483000</td><td>层级</td></tr>
+            <tr><td><code>onSay</code> / <code>onPoke</code></td><td>—</td><td>回调</td></tr>
+          </table>
+        </div>
+
+        <h2>常用 API</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">const pet = LelePet.mount({ /* 上面的配置 */ });
+
+pet.say('写完了记得提交');   // 说一句
+pet.pat(true);              // 摸一下（true = 忽略冷却）
+pet.hop();  pet.spin();     // 蹦 / 转圈
+pet.sleep(); pet.wake();    // 睡 / 醒
+pet.walkTo(600);            // 走到某个 x
+pet.setSize(260);           // 改大小
+pet.setVolume(0);           // 静音
+pet.hide(); pet.show();     // 藏起来 / 叫回来
+pet.destroy();              // 彻底移除</pre></div>
+
+        <h2>手搓版 vs 现成组件</h2>
+        <p>
+          你从 V5 得到的是一个 <code>index.html</code>；项目里的
+          <a href="../assets/lele-pet.js">assets/lele-pet.js</a> 是同一套逻辑整理成的可复用组件。
+          想嵌到别人的网页里，用组件更省事：
+        </p>
+        <div class="tw">
+          <table>
+            <tr><th></th><th>你自己那份（V5）</th><th>lele-pet.js</th></tr>
+            <tr><td>代码</td><td>一个 629 行的 HTML</td><td>一个 JS 文件 + 4 张图</td></tr>
+            <tr><td>放置</td><td>改代码里的常量</td><td><code>LelePet.mount({...})</code></td></tr>
+            <tr><td>睡觉 / 冒 Zzz</td><td>没有</td><td>有</td></tr>
+            <tr><td>音效（喵 / 呼噜）</td><td>没有</td><td>有，WebAudio 合成</td></tr>
+            <tr><td>记住位置、隐藏住</td><td>没有</td><td>有，存 localStorage</td></tr>
+            <tr><td>素材挂了兜底</td><td>会白屏</td><td>退回静态图 + CSS 动画</td></tr>
+            <tr><td>触摸 / 键盘 / 读屏</td><td>基本可用</td><td>都处理了</td></tr>
+            <tr><td>待机自言自语</td><td>没有</td><td>有</td></tr>
+          </table>
+        </div>
+
+        <h2>让宠物站在某个元素上</h2>
+        <p>
+          <code>floor</code> 决定它踩在哪条线上。传选择器最方便 —— 比如让它站在页面底部的
+          <code>#desk</code> 上：
+        </p>
+<div class="codeblock"><pre data-label="js" class="lang-js">LelePet.mount({
+  base: 'assets/',
+  floor: '#desk',            // 踩在 #desk 的上边缘
+  x: 0.8
+});
+
+// 也可以给函数，动态决定（比如跟着某个卡片走）
+LelePet.mount({
+  floor: function (pet) {
+    var r = document.querySelector('#desk').getBoundingClientRect();
+    return r.top;
+  }
+});</pre></div>
+
+        <div class="pagefoot">
+          <p>最后一步：上线前该检查什么，还有我踩过的坑。</p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+<script>
+/* 参数面板：改 → 立刻更新 iframe 与代码 */
+(function () {
+  var size = document.getElementById('pSize');
+  var vSize = document.getElementById('vSize');
+  var roam = document.getElementById('pRoam');
+  var sound = document.getElementById('pSound');
+  var dock = document.getElementById('pDock');
+  var frame = document.getElementById('preview');
+  var link = document.getElementById('demoLink');
+  var pre = document.getElementById('snippet');
+  var timer = null;
+
+  function esc() { return '<' + '/script>'; }   /* 不能直接写结束标签，会截断本脚本 */
+
+  function state() {
+    return {
+      size: parseInt(size.value, 10),
+      roam: roam.checked,
+      sound: sound.checked,
+      dock: dock.checked
+    };
+  }
+
+  function snippet(s, withOpts) {
+    var L = [];
+    L.push('<script src="assets/lele-pet.js">' + esc());
+    L.push('<script>');
+    L.push('  LelePet.mount({');
+    L.push("    base: 'assets/',");
+    L.push('    size: ' + s.size + ',');
+    L.push("    floor: '#desk',");
+    if (withOpts || !s.roam) L.push('    roam: ' + s.roam + ',');
+    if (withOpts || !s.sound) L.push('    sound: ' + s.sound + ',');
+    if (s.dock) L.push('    dock: true,');
+    L.push('    x: 0.8');
+    L.push('  });');
+    L.push(esc());
+    return L.join('\n');
+  }
+
+  function apply(withOpts) {
+    var s = state();
+    vSize.textContent = s.size;
+    var q = '?size=' + s.size + '&roam=' + (s.roam ? 1 : 0) +
+            '&sound=' + (s.sound ? 1 : 0) + '&dock=' + (s.dock ? 1 : 0);
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      frame.src = 'demo.html' + q;
+      link.href = 'demo.html' + q;
+    }, 260);
+    pre.textContent = snippet(s, withOpts);
+  }
+
+  size.addEventListener('input', function () { markPreset(null); apply(); });
+  [roam, sound, dock].forEach(function (el) {
+    el.addEventListener('change', function () { markPreset(null); apply(); });
+  });
+
+  var PRESETS = {
+    min:  { size: 160, roam: false, sound: false, dock: false },
+    rec:  { size: 200, roam: true,  sound: true,  dock: false },
+    full: { size: 240, roam: true,  sound: true,  dock: true }
+  };
+  function markPreset(name) {
+    document.querySelectorAll('.presets button').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.preset === name);
+    });
+  }
+  document.querySelectorAll('.presets button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var p = PRESETS[b.dataset.preset];
+      size.value = p.size; roam.checked = p.roam; sound.checked = p.sound; dock.checked = p.dock;
+      markPreset(b.dataset.preset);
+      apply(true);
+    });
+  });
+
+  apply(true);
+})();
+</script>
+</body>
+</html>

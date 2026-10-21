@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1. 抠图：把猫拿出来 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 1 步 · 抠图：把猫拿出来</h1>
+        <p class="lede">目标只有一个：得到一张<b>只有猫、背景透明</b>的 PNG。</p>
+
+        <h2>为什么不能「按白色抠掉」</h2>
+        <p>
+          这是只白猫，背景也是白灰。如果简单地「接近白色就变透明」，猫的毛边会跟着一起被抠掉，
+          边缘变成锯齿，脸上还可能出现透明的洞。
+        </p>
+        <p>正确做法是<b>从图片四条边往里灌水</b>：</p>
+        <ul>
+          <li>先按「和背景色的距离」判断每个像素像不像背景；</li>
+          <li>只把<b>和图片边缘连通</b>的那些背景变透明；</li>
+          <li>猫身体内部的浅色毛因为被深色毛包住，灌不进去，所以不会破洞。</li>
+        </ul>
+        <p>
+          原图左上角还贴着一个「乐乐」对话气泡。它和耳朵之间只连着几个像素，
+          所以脚本会先<b>腐蚀 6px</b> 把这根细线断开，从猫身上灌水，再膨胀回来 —— 气泡就被甩掉了。
+        </p>
+
+        <h2>跑起来</h2>
+        <p>先看一张带坐标网格的图（下一步量眼睛要用），再正式抠：</p>
+
+<div class="codeblock"><pre data-label="终端" class="lang-bash"># 1) 出网格图，用来量眼睛坐标
+python3 tools/split-sprite.py --src assets/lele-original.jpg --out /tmp/pet --grid
+
+# 2) 正式抠图
+python3 tools/split-sprite.py --src assets/lele-original.jpg --out /tmp/pet \
+    --seed 540,700 --preview</pre></div>
+
+        <p>
+          <code>--seed</code> 是「猫身上的一个点」，脚本从这里开始灌水。
+          这张图给的是鼻头 <code>540,700</code>；不给的话默认取图片中心，
+          如果中心正好是背景，就会抠空。
+        </p>
+
+        <h2>看结果</h2>
+        <p>终端会打印外接框，比如这张图：</p>
+<div class="codeblock"><pre data-label="终端">背景色估计：[228.5 229.  236. ]  容差 22.0
+角色外接框：(166, 327, 977, 1119)  尺寸 811x792
+  lele.png        (811, 792)</pre></div>
+
+        <p>
+          再用 <code>--preview</code> 生成的对照图验收：左边是抠图，中间是「皮 + 眼睛」，
+          右边两格是眨眼的过程。看一眼就知道干不干净。
+        </p>
+
+        <div class="callout good">
+          <div class="ic">✅</div>
+          <div class="bd">
+            <span class="t">合格的标准</span>
+            背景全透明、毛边有半透明过渡、没有残留的卡片角或文字。
+            把这张 PNG 拖进浏览器，背景应该是灰白格子。
+          </div>
+        </div>
+
+        <h2>抠坏了怎么办</h2>
+        <div class="tw">
+          <table>
+            <tr><th>症状</th><th>原因</th><th>改法</th></tr>
+            <tr>
+              <td>抠出来只有一小块</td>
+              <td>种子点落在背景上了</td>
+              <td><code>--seed x,y</code> 指到角色身上</td>
+            </tr>
+            <tr>
+              <td>背景没抠干净 / 毛被吃掉</td>
+              <td>背景不是纯色</td>
+              <td><code>--tol</code> 调大或调小（默认 22）</td>
+            </tr>
+            <tr>
+              <td>旁边有块东西跟着留下</td>
+              <td>它和角色连在一起</td>
+              <td>调大脚本里的腐蚀半径 <code>grow_erode</code></td>
+            </tr>
+            <tr>
+              <td>整张图糊成一块</td>
+              <td>背景太花（截图）</td>
+              <td>见下一节</td>
+            </tr>
+          </table>
+        </div>
+
+        <h2>背景不干净：两条出路</h2>
+        <p>
+          我实测过：拿一张带白色卡片、文字、UI 的微博截图去抠，必然失败 ——
+          因为「背景」根本不是一个颜色。这时候别硬抠：
+        </p>
+<div class="codeblock"><pre data-label="终端"># 出路 1：先裁到角色，让背景尽量均匀（坐标按原图给）
+python3 tools/split-sprite.py --src shot.jpg --out pet \
+    --crop 68,110,246,296 --seed 157,268 --tol 26
+
+# 出路 2：外部蒙版（白=角色，黑=背景）
+#   先装 rembg 出一张蒙版，再喂进去
+pip install rembg
+rembg i shot.jpg mask.png
+python3 tools/split-sprite.py --src shot.jpg --out pet --mask mask.png</pre></div>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">小技巧</span>
+            Photoshop / 像素级选择工具 / 在线抠图站也能出蒙版，
+            存成黑白 PNG 就能用 <code>--mask</code>。别在这步死磕算法。
+          </div>
+        </div>
+
+        <div class="pagefoot">
+          <p>拿到干净的 <code>pet.png</code> 就完成一半了。下一步把眼睛拆出来。</p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

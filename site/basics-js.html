@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B · JavaScript：变量、函数、事件 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>附录 B · JavaScript 速成</h1>
+        <p class="lede">
+          这一页只讲本项目真的用到的语法。每一条都配了项目里的一行真实代码 ——
+          <b>你看不懂哪行，就在这页搜它的关键字。</b>
+        </p>
+
+        <h2>变量：const 和 let</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">const SPRITE = { w: 811, h: 792 };   // 不会再重新赋值的，用 const
+let bob = 0;                          // 会变的，用 let
+bob -= Math.sin(time * 2.1) * 1.4;</pre></div>
+        <p>
+          <code>const</code> 是「这个名字以后只指向这个东西」，不是「内容不能改」——
+          对象里的值照样能改。习惯上默认写 <code>const</code>，确实要重新赋值再改 <code>let</code>。
+        </p>
+
+        <h2>对象：一堆「键: 值」</h2>
+        <p>本项目的状态几乎都是对象。这是桌宠的全部状态：</p>
+<div class="codeblock"><pre data-label="05-物理.html" class="lang-js">const pet = {
+  x: 500, y: 300,        // 位置
+  state: 'idle',         // 状态：idle / drag / fly
+  vx: 0, vy: 0,          // 速度
+  facing: 1              // 朝左(-1)还是朝右(1)
+};
+
+pet.x += 10;             // 用「点」取值和改值
+pet.state = 'fly';</pre></div>
+
+        <h2>函数：把一堆步骤打包</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">// 普通函数
+function floorY() {
+  return window.innerHeight * 0.78 - H;
+}
+
+// 箭头函数：同样的东西，短一点
+const clamp = (v, a, b) => (v &lt; a ? a : v &gt; b ? b : v);</pre></div>
+        <p>
+          <code>clamp(v, 0, 1)</code> 是「把 v 卡在 0 和 1 之间」的常用小工具，
+          本项目到处在用（限制眼睛偏移、限制透明度……）。
+        </p>
+
+        <h2>数组：一串东西，用［］取</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">const lines = ['嘿嘿～', '好开心！', '喵呜～'];
+
+lines[0];                          // '嘿嘿～'
+lines.length;                      // 3
+lines[(Math.random() * lines.length) | 0];   // 随机抽一句
+
+samples.push({ t: now, x: e.clientX });      // 往尾部加一个
+samples.shift();                             // 从头部删一个</pre></div>
+        <p class="muted small">
+          那个 <code>| 0</code> 是「取整」的偏方，等价于 <code>Math.floor()</code>，
+          写在 <code>Math.random() * 3</code> 后面就是「随机取 0、1、2 之一」。
+        </p>
+
+        <h2>找到页面上的元素，然后听它的事件</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">const canvas = document.getElementById('c');        // 按 id 找
+const ctx = canvas.getContext('2d');                 // 拿到画笔
+
+const hit = document.getElementById('hit');
+hit.addEventListener('pointerdown', (e) => {         // 按下时执行
+  e.preventDefault();                                 // 别做默认行为（比如拖动图片）
+  pet.squash = { t: 0, dur: 0.45, amp: 0.22 };        // 挤压一下
+});</pre></div>
+        <div class="tw">
+          <table>
+            <tr><th>写法</th><th>意思</th></tr>
+            <tr><td><code>addEventListener('pointerdown', fn)</code></td><td>按下（鼠标/手指都算）</td></tr>
+            <tr><td><code>'pointermove'</code></td><td>移动</td></tr>
+            <tr><td><code>'pointerup'</code></td><td>松开</td></tr>
+            <tr><td><code>e.clientX / e.clientY</code></td><td>事件发生时，指针在窗口里的坐标</td></tr>
+          </table>
+        </div>
+        <p>
+          为什么不用 <code>mousedown</code>？因为 pointer 事件<b>鼠标、触摸屏、触控笔</b>统一处理，
+          手机上一套代码就够。
+        </p>
+
+        <h2>每帧跑一次：requestAnimationFrame</h2>
+        <p>动画的本体就是一个「自己调自己」的循环：</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">let last = performance.now();
+let time = 0;
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);   // 距上一帧过了几秒
+  last = now;
+  time += dt;
+
+  draw();                                  // 画这一帧
+  requestAnimationFrame(frame);            // 约 60 次/秒，下一帧再叫我
+}
+requestAnimationFrame(frame);              // 启动</pre></div>
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">为什么到处都在乘 dt</span>
+            速度写的是「每秒移动多少像素」，所以每帧要走
+            <code>速度 × 这一帧的秒数</code>。不乘的话，120Hz 的屏幕上宠物会跑两倍快。
+          </div>
+        </div>
+
+        <h2>为什么整个文件包在一个函数里</h2>
+<div class="codeblock"><pre data-label="js" class="lang-js">(function () {
+  'use strict';
+  const W = 220;          // 这些变量外面看不到，不会污染全局
+})();</pre></div>
+        <p>
+          这叫「立即执行函数」（IIFE）。好处：里面的 <code>W</code>、<code>pet</code>
+          不会和别的脚本撞名。你在教程里看到的每个版本都是这个结构。
+        </p>
+
+        <h2>等待图片加载：Promise / async</h2>
+        <p>
+          图片是异步加载的，<b>不能</b>写完 <code>img.src = ...</code> 就立刻
+          <code>drawImage(img)</code> —— 那时它还没加载完，画出来是空的。
+        </p>
+<div class="codeblock"><pre data-label="js" class="lang-js">function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload  = () => resolve(i);        // 加载好了 → 把图片交出去
+    i.onerror = reject;                  // 失败了 → 报错
+    i.src = src;
+  });
+}
+
+// 三张图都加载完，再开始画
+Promise.all([loadImage('a.png'), loadImage('b.png'), loadImage('c.png')])
+  .then((arr) => {
+    skin = arr[0]; eyeL = arr[1]; eyeR = arr[2];
+    requestAnimationFrame(frame);
+  });</pre></div>
+        <p class="muted small">
+          <code>.then(...)</code> 里的代码会在「前面的事都完成」之后才执行。
+          这就是为什么本项目的动画一定要在 <code>.then</code> 里启动。
+        </p>
+
+        <h2>数学函数速查</h2>
+        <div class="tw">
+          <table>
+            <tr><th>写法</th><th>作用</th><th>项目里用在哪</th></tr>
+            <tr><td><code>Math.sin(t)</code></td><td>-1 到 1 之间来回摆</td><td>呼吸、抖动</td></tr>
+            <tr><td><code>Math.abs(x)</code></td><td>绝对值</td><td>速度大小、走路起伏</td></tr>
+            <tr><td><code>Math.round(x)</code></td><td>四舍五入成整数</td><td>像素对齐</td></tr>
+            <tr><td><code>Math.min / max</code></td><td>取小 / 取大</td><td>限制不超出范围</td></tr>
+            <tr><td><code>Math.hypot(a, b)</code></td><td>√(a²+b²)，两点距离</td><td>鼠标离多远、甩得多快</td></tr>
+            <tr><td><code>Math.random()</code></td><td>0~1 的随机数</td><td>随机台词、抖动</td></tr>
+          </table>
+        </div>
+
+        <h2>动手改改看</h2>
+        <p>打开 <a href="../build/03-视线.html">build/03-视线.html</a>，找到这一行：</p>
+<div class="codeblock"><pre data-label="改数字，立刻看到区别" class="lang-js">gaze.tx = (dx / d) * 15 * reach;   // 试着把 15 改成 30
+gaze.ty = (dy / d) * 10 * reach;   // 把 10 改成 20</pre></div>
+        <p>保存、刷新 —— 眼珠的偏移会变成两倍。这就是调参的感觉：<b>改一个数，看一次效果。</b></p>
+
+        <div class="pagefoot">
+          <p>下一页：<a href="basics-canvas.html">Canvas —— 最容易懵的那部分</a></p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

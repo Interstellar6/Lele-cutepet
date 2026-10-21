@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>乐乐 · 桌面版</title>
+<!--
+  ============================================================
+  桌面版页面：一张「只有猫」的透明页，装进原生小窗里
+  ------------------------------------------------------------
+  和网页版的区别：
+    · 背景全透明（窗口本身也是透明的）
+    · 拖拽不自己动，而是把坐标发给原生外壳，由它移动窗口（dragMode: 'external'）
+    · 眼睛由外壳送真实鼠标坐标进来，所以鼠标不在窗口上也能盯着你
+    · 右键 → 原生菜单
+  这个文件只在 app 里跑：build.sh 会把它和 assets/ 一起拷进 .app
+  ============================================================
+-->
+<style>
+  html, body {
+    height: 100%; margin: 0; overflow: hidden;
+    background: transparent !important;     /* 关键：窗口透明，不能有底色 */
+    -webkit-user-select: none; user-select: none;
+    cursor: default;
+  }
+  /* 桌面版不开「命中区」以外的光标样式，避免出现抓手 */
+  .lele-hit { cursor: default !important; }
+</style>
+</head>
+<body>
+<script src="assets/lele-pet.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* 原生外壳的桥（Safari 的 WKWebView 消息通道），网页里跑的时候是 undefined */
+  var bridge = (window.webkit && window.webkit.messageHandlers &&
+                window.webkit.messageHandlers.pet) || null;
+  function send(obj) {
+    if (bridge) { try { bridge.postMessage(obj); } catch (e) {} }
+  }
+
+  var pet = LelePet.mount({
+    base: 'assets/',
+    size: 220,
+    x: 0.5,
+    /* 给下面的影子和落地留一点空间 */
+    floor: function () { return window.innerHeight - 34; },
+    roam: false,
+    sound: true,
+    volume: 0.25,
+    dock: false,
+    greet: true,
+    posKey: null,
+    ariaLabel: '乐乐，桌面上的猫',
+
+    /* 拖拽交给原生窗口：这里只把屏幕坐标转发过去 */
+    dragMode: 'external',
+    onDragStart: function (e) {
+      send({ cmd: 'dragStart', x: e.screenX, y: e.screenY });
+    },
+    onDragMove: function (e) {
+      send({ cmd: 'dragMove', x: e.screenX, y: e.screenY });
+    },
+    onDragEnd: function (e) {
+      send({ cmd: 'dragEnd', x: e.screenX, y: e.screenY });
+    },
+    /* 说了一句什么 → 通报给外壳，仪表盘会显示这句 */
+    onSay: function (text) { send({ cmd: 'said', text: text }); }
+  });
+
+  /* ── 外壳调用：把真实鼠标位置喂进来 ──
+     注意：不能靠 window.screenX / screenY 去换算 —— WKWebView 里这两个值是坏的
+     （实测恒定返回 0 和屏幕高度）。所以窗口自己的位置由外壳一起送过来。
+     四个数都是「CSS 像素、以主屏左上角为原点」。 */
+  window.petLookAt = function (winLeft, winTop, mouseX, mouseY) {
+    if (!pet || !pet.ready) return;
+    pet.lookAt(mouseX - winLeft, mouseY - winTop);
+  };
+
+  /* ── 外壳调用：窗口尺寸变了，重新贴地 ── */
+  window.petResize = function () {
+    if (pet && pet._onResize) pet._onResize();
+  };
+
+  /* ── 告诉外壳「猫身上那块区域」在哪，用来做「点空白穿透」 ── */
+  function reportHit() {
+    var r = pet.hit.getBoundingClientRect();
+    send({
+      cmd: 'hitArea',
+      x: Math.round(r.left), y: Math.round(r.top),
+      w: Math.round(r.width), h: Math.round(r.height)
+    });
+  }
+  pet.readyPromise.then(function () {
+    setTimeout(reportHit, 60);
+    addEventListener('resize', function () { setTimeout(reportHit, 60); });
+  });
+
+  /* 右键 → 原生菜单（位置用屏幕坐标） */
+  addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    send({ cmd: 'menu', x: e.screenX, y: e.screenY });
+  });
+
+  /* 桌面版不要页面滚动和缩放 */
+  addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
+  addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') send({ cmd: 'hide' });
+  });
+
+  window.desktopPet = pet;
+})();
+</script>
+</body>
+</html>

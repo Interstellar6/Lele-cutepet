@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. 上线前检查 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 7 步 · 上线前检查</h1>
+        <p class="lede">
+          「能跑」和「敢放进别人电脑里」，差的是下面这些。
+          每条都对应一个真实会出问题的地方。
+        </p>
+
+        <h2>清单</h2>
+        <ul class="checklist" data-key="ship">
+          <li><input type="checkbox" id="s1"><label for="s1"><b>高分屏不糊</b>：画布按 <code>devicePixelRatio</code> 放大</label></li>
+          <li><input type="checkbox" id="s2"><label for="s2"><b>动作不出画布</b>：四周留白（上 32% / 下 16% / 左右 20%）</label></li>
+          <li><input type="checkbox" id="s3"><label for="s3"><b>切标签页不瞬移</b>：<code>dt</code> 封顶，后台暂停 rAF</label></li>
+          <li><input type="checkbox" id="s4"><label for="s4"><b>改窗口大小后贴地</b>：监听 <code>resize</code> 重算地面</label></li>
+          <li><input type="checkbox" id="s5"><label for="s5"><b>记住摆哪儿了</b>：位置和「隐藏」存 <code>localStorage</code></label></li>
+          <li><input type="checkbox" id="s6"><label for="s6"><b>素材挂了有兜底</b>：退回静态图 + CSS 动画，别白屏</label></li>
+          <li><input type="checkbox" id="s7"><label for="s7"><b>手机能拖</b>：用 pointer 事件 + <code>touch-action:none</code></label></li>
+          <li><input type="checkbox" id="s8"><label for="s8"><b>命中区贴合身形</b>：不是整个矩形，点旁边空白没反应</label></li>
+          <li><input type="checkbox" id="s9"><label for="s9"><b>键盘能用</b>：可 Tab 聚焦，回车/空格等于点它</label></li>
+          <li><input type="checkbox" id="s10"><label for="s10"><b>读屏能念</b>：气泡 <code>role="status" aria-live</code></label></li>
+          <li><input type="checkbox" id="s11"><label for="s11"><b>只跑一个 rAF</b>：多个循环抢帧会掉帧</label></li>
+          <li><input type="checkbox" id="s12"><label for="s12"><b>晕动症友好</b>：<code>prefers-reduced-motion</code> 时关掉奔跑跳跃</label></li>
+        </ul>
+        <p class="done-count"></p>
+
+        <h2>我踩过的坑</h2>
+        <p>这些全都在本项目的代码里修好了，你可以直接对照：</p>
+        <div class="tw">
+          <table>
+            <tr><th>坑</th><th>现象</th><th>原因 / 解法</th></tr>
+            <tr>
+              <td>Pillow 的 <code>floodfill</code> 静默失败</td>
+              <td>抠图程序跑完什么都没变，还不报错</td>
+              <td><code>Image.fromarray()</code> 出来是只读图，赋值抛的异常被内部吞了 → 先 <code>.copy()</code></td>
+            </tr>
+            <tr>
+              <td>跳起来耳朵没了</td>
+              <td>动作一大，头顶被切</td>
+              <td>画布没留白 → 上方留 32%，并让 <code>x/y</code> 指角色本体</td>
+            </tr>
+            <tr>
+              <td>惊讶时脸上出现方块</td>
+              <td>眼睛放大后有个淡矩形</td>
+              <td>眼片四周是羽化毛边，放大 &gt;100% 就会露边 → 上限锁 1.0</td>
+            </tr>
+            <tr>
+              <td>往左走之后眼球跟反</td>
+              <td>只有朝左时反，还存进了 localStorage</td>
+              <td>镜像坐标系里 <code>+x</code> 在屏幕上是往左 → 偏移乘 <code>facing</code></td>
+            </tr>
+            <tr>
+              <td>点一次之后再也摸不动</td>
+              <td>抚摸永久失效</td>
+              <td>冷却只判断 <code>&gt;0</code>，忘了每帧 <code>-= dt</code></td>
+            </tr>
+            <tr>
+              <td>挤压后宠物消失</td>
+              <td>点了它一下就不见了</td>
+              <td>挤压对象漏了 <code>amp</code> → <code>NaN</code> 污染整条变换链</td>
+            </tr>
+            <tr>
+              <td>无头测试里物理不动</td>
+              <td>冒烟测试永远「还在飞」</td>
+              <td>虚拟时间下 rAF 推进慢 → 测试改成手动推时间轴（<code>pet.update(dt)</code>）</td>
+            </tr>
+          </table>
+        </div>
+
+        <h2>常见问题</h2>
+
+        <h3>一定要用 Python 吗？</h3>
+        <p>
+          只有做素材那一步需要。做完之后，浏览器端只有 <code>lele-pet.js</code> 和四张 PNG，
+          纯静态，双击 <code>index.html</code> 就能跑（<code>file://</code> 也行，不用起服务器）。
+        </p>
+
+        <h3>没有透明背景的图能做吗？</h3>
+        <p>
+          能做，但得先出蒙版（<code>rembg</code> / SAM / PS 都行），
+          然后 <code>--mask</code> 喂给脚本。没有蒙版就只能做「矩形贴纸」风格，眨眼也做不了。
+        </p>
+
+        <h3>它能一直跑着不卡吗？</h3>
+        <p>
+          它只有一个 <code>requestAnimationFrame</code> 循环，切到后台标签页会暂停。
+          一帧只画 4 次 <code>drawImage</code>（皮 + 两只眼 + 可能的粒子），
+          比大多数网页动画都省。
+        </p>
+
+        <h3>怎么让它只在某些页面出现？</h3>
+        <p>
+          它就是个普通脚本，<b>你不加载它就不出现</b>。想要「只在首页出现」，
+          就把那两行 <code>mount</code> 只放在首页模板里。
+        </p>
+
+        <h3>能放两只吗？</h3>
+        <p>
+          可以，<code>new LelePet()</code> 几份就行，但要给不同的
+          <code>posKey</code>（否则位置互相覆盖），并把 <code>roam</code> 关掉免得撞在一起。
+        </p>
+
+        <h2>还想往下加？</h2>
+        <div class="cards">
+          <div class="card">
+            <h3>更多表情</h3>
+            <p>往 <code>EMOTES</code> 里加一个 5 行的 <code>apply</code> 函数就够了。</p>
+          </div>
+          <div class="card">
+            <h3>睡觉 / 待机</h3>
+            <p>加 <code>sleep</code> 状态：眼睛闭上、呼吸变慢、冒 Zzz 粒子。</p>
+          </div>
+          <div class="card">
+            <h3>跟随滚动</h3>
+            <p><code>fixed: false</code> 让它随文档走，适合长页面。</p>
+          </div>
+          <div class="card">
+            <h3>换一套皮肤</h3>
+            <p>只换 <code>base</code> 指向另一个素材文件夹，组件代码不动。</p>
+          </div>
+        </div>
+
+        <div class="callout good">
+          <div class="ic">🎉</div>
+          <div class="bd">
+            <span class="t">做完了</span>
+            现在你手上有：一套拆图脚本、一个可复用的单文件桌宠、以及一张「以后加功能」的地图。
+            去把它挂在你的主页上吧。
+          </div>
+        </div>
+
+        <div class="pagefoot">
+          <p>
+            成品：<a href="../index.html">乐乐桌宠</a> ·
+            完整组件：<a href="../assets/lele-pet.js">assets/lele-pet.js</a> ·
+            从零代码：<a href="../build/05-物理.html">build/</a>
+          </p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

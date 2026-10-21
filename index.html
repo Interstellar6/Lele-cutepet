@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>乐乐桌宠 · 可以摸、可以拖、可以甩飞的猫</title>
+<link rel="icon" href="assets/lele.png">
+<style>
+  :root{
+    --ink:#3f3a55; --ink2:#6f688c; --line:rgba(120,110,170,.18);
+    --card:rgba(255,255,255,.82); --pink:#ff6b95; --blue:#5b7cfa;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; overflow:hidden; color:var(--ink);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(900px 600px at 12% -10%, #ffe3ee 0%, rgba(255,227,238,0) 60%),
+      radial-gradient(800px 700px at 92% 6%, #dfe8ff 0%, rgba(223,232,255,0) 62%),
+      radial-gradient(700px 500px at 60% 110%, #e8e2ff 0%, rgba(232,226,255,0) 60%),
+      linear-gradient(180deg,#fbf7ff 0%,#f3f0fb 60%,#ece7f7 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 墙上的装饰 */
+  .blob{position:fixed;border-radius:50%;filter:blur(46px);opacity:.55;pointer-events:none}
+  .blob.b1{width:320px;height:320px;left:6%;top:16%;background:#ffd0e2}
+  .blob.b2{width:260px;height:260px;right:8%;top:30%;background:#cfdcff}
+  .blob.b3{width:220px;height:220px;left:44%;top:6%;background:#e6dcff}
+
+  /* 桌子：桌宠就站在这条线上 */
+  #desk{
+    position:fixed;left:0;right:0;bottom:0;height:19vh;min-height:120px;
+    background:linear-gradient(180deg,#f7ecdf 0%,#efdfcd 100%);
+    border-top:3px solid #e2cdb6;
+    box-shadow:0 -1px 0 rgba(255,255,255,.7) inset, 0 -18px 40px rgba(160,130,110,.10);
+    z-index:1;
+  }
+  #desk::after{
+    content:"";position:absolute;inset:0;
+    background-image:repeating-linear-gradient(90deg,rgba(190,160,130,.18) 0 2px,transparent 2px 46px);
+    opacity:.5;
+  }
+
+  /* 左上角控制台 */
+  #panel{
+    position:fixed;left:18px;top:18px;width:294px;max-width:calc(100vw - 36px);
+    background:var(--card);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.9);border-radius:20px;
+    box-shadow:0 18px 46px rgba(80,70,130,.16),0 2px 6px rgba(80,70,130,.06);
+    padding:16px 16px 14px;z-index:60;
+  }
+  #panel h1{margin:0 0 2px;font-size:17px;letter-spacing:.3px;display:flex;align-items:center;gap:7px}
+  #panel h1 .dot{width:9px;height:9px;border-radius:50%;background:var(--pink);box-shadow:0 0 0 4px rgba(255,107,149,.18)}
+  #panel .sub{color:var(--ink2);font-size:12px;margin:0 0 11px}
+  #said{
+    min-height:38px;margin:0 0 12px;padding:8px 11px;border-radius:12px;font-size:12.5px;
+    background:rgba(255,255,255,.9);border:2px solid var(--ink);color:var(--ink);
+    position:relative;transition:transform .2s cubic-bezier(.2,1.5,.4,1);
+  }
+  #said.bump{transform:scale(1.04)}
+  #said::after{content:"";position:absolute;left:22px;bottom:-7px;width:10px;height:10px;background:#fff;
+    border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg)}
+  .row{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+  button.act{
+    flex:1 1 auto;min-width:78px;padding:8px 10px;border-radius:11px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12.5px;font-weight:600;
+    font-family:inherit;transition:transform .12s ease,box-shadow .16s ease,border-color .16s ease;
+    box-shadow:0 2px 6px rgba(90,80,140,.07);
+  }
+  button.act:hover{border-color:rgba(255,107,149,.6);color:#d93b6c;transform:translateY(-1px);
+    box-shadow:0 6px 14px rgba(255,107,149,.16)}
+  button.act:active{transform:translateY(1px) scale(.98)}
+  .field{display:flex;align-items:center;gap:9px;margin:9px 0;font-size:12.5px;color:var(--ink2)}
+  .field input[type=range]{flex:1;accent-color:var(--pink)}
+  .switch{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink2);margin:7px 0}
+  .switch input{accent-color:var(--pink);width:16px;height:16px}
+  .hint{margin:10px 0 0;font-size:11.5px;color:#8d86a8;line-height:1.7;border-top:1px dashed var(--line);padding-top:9px}
+  .hint b{color:#d93b6c}
+
+  /* 右下角：嵌入代码 */
+  #embed{
+    position:fixed;right:18px;top:18px;width:340px;max-width:calc(100vw - 36px);
+    background:rgba(46,42,66,.92);color:#eae7f5;border-radius:16px;
+    box-shadow:0 16px 40px rgba(50,40,90,.28);z-index:60;overflow:hidden;
+    font-size:12px;
+  }
+  #embed summary{padding:11px 14px;cursor:pointer;font-weight:600;font-size:12.5px;list-style:none;
+    display:flex;align-items:center;justify-content:space-between}
+  #embed summary::-webkit-details-marker{display:none}
+  #embed summary::after{content:"▾";opacity:.6;transition:transform .2s}
+  #embed[open] summary::after{transform:rotate(180deg)}
+  #embed pre{margin:0;padding:0 14px 12px;overflow:auto;font:11.5px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:#cfd6ff;white-space:pre}
+  #embed .foot{display:flex;gap:8px;align-items:center;padding:0 14px 13px}
+  #embed button{flex:1;padding:7px;border-radius:9px;border:1px solid rgba(255,255,255,.22);
+    background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-family:inherit;font-size:12px}
+  #embed button:hover{background:rgba(255,255,255,.18)}
+  .tag{display:inline-block;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.14);
+    font-size:11px;margin-left:6px;color:#c9c3e6}
+
+  @media (max-width:760px){
+    #panel{left:10px;right:10px;top:10px;width:auto;padding:13px}
+    #panel .sub{display:none}
+    #embed{display:none}
+    #desk{height:22vh}
+  }
+  @media (max-height:560px){ #embed{display:none} }
+</style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+<div id="desk"></div>
+
+<div id="panel">
+  <h1><span class="dot"></span>乐乐桌宠</h1>
+  <p class="sub">从一张表情包里活过来的一只猫</p>
+  <div id="said">……</div>
+
+  <div class="row">
+    <button class="act" data-a="pat">摸摸头</button>
+    <button class="act" data-a="hop">蹦一下</button>
+    <button class="act" data-a="spin">转一圈</button>
+  </div>
+  <div class="row">
+    <button class="act" data-a="sleep">睡一会儿</button>
+    <button class="act" data-a="talk">说句话</button>
+    <button class="act" data-a="find">回到桌上</button>
+  </div>
+
+  <div class="field"><span>大小</span><input id="size" type="range" min="110" max="330" value="210" step="2"><span id="sizeVal">210</span></div>
+  <label class="switch"><span>自己在桌上散步</span><input id="roam" type="checkbox" checked></label>
+  <label class="switch"><span>音效（喵 / 呼噜）</span><input id="sound" type="checkbox" checked></label>
+
+  <p class="hint">
+    <b>摸摸头</b>：在它身上来回划几下，它会打呼噜<br>
+    <b>拎起来</b>：按住拖动；快速甩出去会飞、会弹、会喊<br>
+    <b>点一下</b>：开心 / 害羞 / 生气 / 咯咯笑 随机；连点五次会炸毛<br>
+    <b>双击</b>蹦高高，<b>长按</b>让它睡着；眼睛会一直跟着你
+  </p>
+</div>
+
+<details id="embed" open>
+  <summary>放进你自己的网页<span class="tag">2 行</span></summary>
+  <pre id="snippet">&lt;script src="assets/lele-pet.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  LelePet.mount({
+    base: 'assets/',   // 素材目录
+    size: 200,         // 显示宽度 px
+    floor: '#desk',    // 站在哪里（默认视口底部）
+    roam: true,        // 会不会自己散步
+    sound: true
+  });
+&lt;/script&gt;</pre>
+  <div class="foot"><button id="copy">复制代码</button>
+    <a class="act" href="site/index.html" style="flex:1;text-align:center;padding:7px;border-radius:9px;
+      border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;
+      text-decoration:none;font-size:12px">自己手搓一个 ↗</a></div>
+</details>
+
+<script src="assets/lele-pet.js"></script>
+<script>
+(function () {
+  var LINES = ['今天也要开心呀', '我在桌上等你回来', '要不要摸摸我的头？', '嘿，别老盯着屏幕'];
+
+  var said = document.getElementById('said');
+  var pet = LelePet.mount({
+    base: 'assets/',
+    size: 210,
+    x: 0.78,
+    floor: '#desk',
+    roam: true,
+    sound: true,
+    volume: 0.3,
+    greet: true,
+    posKey: 'lele-demo-pos',
+    onSay: function (t) {
+      said.textContent = '「' + t + '」';
+      said.classList.add('bump');
+      setTimeout(function () { said.classList.remove('bump'); }, 200);
+    }
+  });
+  window.lele = pet;   // 控制台里可以直接逗它：lele.poke()
+
+  document.querySelectorAll('#panel button.act').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var a = b.dataset.a;
+      if (a === 'pat') pet.show().pat(true);
+      else if (a === 'hop') pet.hop();
+      else if (a === 'spin') pet.spin();
+      else if (a === 'sleep') pet.sleep();
+      else if (a === 'find') { pet.show(); pet.walkTo(window.innerWidth * 0.7); pet.say('来啦来啦'); }
+      else if (a === 'talk') pet.say(LINES[(Math.random() * LINES.length) | 0], 3200);
+    });
+  });
+
+  var sizeEl = document.getElementById('size'), sizeVal = document.getElementById('sizeVal');
+  sizeEl.addEventListener('input', function () {
+    sizeVal.textContent = sizeEl.value;
+    pet.setSize(parseInt(sizeEl.value, 10));
+  });
+
+  document.getElementById('roam').addEventListener('change', function (e) {
+    pet.o.roam = e.target.checked;
+  });
+  document.getElementById('sound').addEventListener('change', function (e) {
+    pet.setVolume(e.target.checked ? 0.3 : 0);
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var txt = document.getElementById('snippet').textContent;
+    var btn = this;
+    var done = function () { btn.textContent = '已复制 ✓'; setTimeout(function () { btn.textContent = '复制代码'; }, 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done, function () { fallback(txt, done); });
+    } else fallback(txt, done);
+  });
+  function fallback(txt, done) {
+    var ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>乐乐桌宠 · 第 2 版：眨眼</title>
+<!--
+  ============================================================
+  第 2 版：在第 1 版基础上，加上眼睛
+  ------------------------------------------------------------
+  新增：
+    · 素材从一张 lele.png 换成三张：皮 + 左眼 + 右眼
+    · 眼睛会自动眨，也能用滑块手动控制
+    · 眼睛画在「身体坐标系」里，所以会跟着挤压一起动
+  ============================================================
+-->
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden;
+    font: 13px/1.6 -apple-system, "PingFang SC", system-ui, sans-serif;
+    background: linear-gradient(180deg, #fbf7ff, #ece7f7); }
+  #desk { position: fixed; left: 0; right: 0; bottom: 0; height: 22vh;
+    background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+    border-top: 3px solid #e2cdb6; }
+  #stage { position: fixed; left: 0; top: 0; cursor: grab; touch-action: none; }
+  canvas { display: block; }
+  #hit { position: absolute; border-radius: 40%; cursor: grab; }
+  #tip { position: fixed; left: 14px; top: 12px; margin: 0;
+    color: #8d86a8; font-size: 12px; }
+  /* 第 2 步新增：手动眨眼滑块（只为演示，删掉也不影响） */
+  #panel { position: fixed; left: 14px; top: 40px; display: flex; align-items: center;
+    gap: 8px; font-size: 12px; color: #6f688c; }
+  #panel input { accent-color: #ff6b95; width: 130px; }
+</style>
+</head>
+<body>
+<div id="desk"></div>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="hit"></div>
+</div>
+<p id="tip">第 2 版 · 它会自己眨眼了。拖下面的滑块可以手动眨眼。</p>
+<div id="panel"><label for="open">眨眼</label><input id="open" type="range" min="6" max="100" value="100"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─────────── 素材尺寸与留白（和第 1 版一样） ─────────── */
+  const SPRITE = { w: 811, h: 792 };
+  const W = 220;
+  const H = Math.round(W * SPRITE.h / SPRITE.w);
+  const PAD_X = Math.round(W * 0.20);
+  const PAD_T = Math.round(H * 0.32);
+  const PAD_B = Math.round(H * 0.16);
+  const CW = W + PAD_X * 2;
+  const CH = PAD_T + H + PAD_B;
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const K = W / SPRITE.w;          // 精灵坐标 → 屏幕坐标
+
+  /* ─────────── 第 2 步新增：眼睛几何 ───────────
+     来自 tools/split-sprite.py 生成的 pet.json
+     box = [x0, y0, x1, y1]，是眼睛贴片在精灵里的位置 */
+  const EYES = {
+    l: { box: [154, 156, 362, 352] },
+    r: { box: [521, 176, 709, 360] }
+  };
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  canvas.width = CW * DPR;
+  canvas.height = CH * DPR;
+  canvas.style.width = CW + 'px';
+  canvas.style.height = CH + 'px';
+
+  const stage = document.getElementById('stage');
+  const hit = document.getElementById('hit');
+  const floorY = () => window.innerHeight * 0.78 - H;
+
+  const pet = {
+    x: window.innerWidth * 0.72 - W / 2,
+    y: floorY(),
+    squash: null
+  };
+
+  function render() {
+    stage.style.transform =
+      'translate3d(' + Math.round(pet.x - PAD_X) + 'px,' +
+                       Math.round(pet.y - PAD_T) + 'px,0)';
+  }
+
+  hit.style.left = (PAD_X + W * 0.12) + 'px';
+  hit.style.right = (PAD_X + W * 0.12) + 'px';
+  hit.style.top = (PAD_T + H * 0.18) + 'px';
+  hit.style.bottom = PAD_B + 'px';
+
+  /* ─────────── 第 2 步新增：素材换成三张 ─────────── */
+  let skin = null, eyeL = null, eyeR = null;
+  const imgs = ['../assets/lele-skin.png', '../assets/lele-eye-l.png', '../assets/lele-eye-r.png'];
+  Promise.all(imgs.map(loadImage)).then((arr) => {
+    skin = arr[0]; eyeL = arr[1]; eyeR = arr[2];
+    layout();
+    requestAnimationFrame(frame);
+  });
+  function loadImage(src) {
+    return new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = src;
+    });
+  }
+
+  hit.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    pet.squash = { t: 0, dur: 0.45, amp: 0.22 };
+  });
+  /* 开局和窗口变化时都重新贴地。
+     注意：别信「解析 HTML 那一刻」的窗口尺寸 —— 它可能还不是最终尺寸，
+     所以图片加载完要再 layout() 一次。 */
+  function layout() {
+    pet.y = floorY();
+    pet.x = Math.min(pet.x, window.innerWidth - W);
+    render();
+  }
+  addEventListener('resize', layout);
+
+  /* ─────────── 第 2 步新增：眨眼状态 ───────────
+     自动眨眼：闭得快、睁得慢，间隔随机（固定间隔一眼就能看出是机器） */
+  const blink = { t: 0, dur: 0, next: 1.5 + Math.random() * 3 };
+  const openEl = document.getElementById('open');
+  let manual = false;
+  openEl.addEventListener('input', () => { manual = true; });
+
+  function updateBlink(dt) {
+    if (manual) return +openEl.value / 100;
+
+    if (blink.dur > 0) {
+      blink.t += dt;
+      const k = blink.t / blink.dur;
+      if (k >= 1) {
+        blink.dur = 0;
+        blink.next = 1.6 + Math.random() * 4;
+        return 1;
+      }
+      // 前 30% 时间闭眼，后 70% 睁眼
+      return k < 0.3 ? 1 - k / 0.3 : (k - 0.3) / 0.7;
+    }
+
+    blink.next -= dt;
+    if (blink.next <= 0) { blink.dur = 0.32; blink.t = 0; }
+    return 1;
+  }
+
+  let last = performance.now();
+  let time = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    time += dt;
+
+    if (pet.squash) {
+      pet.squash.t += dt;
+      if (pet.squash.t >= pet.squash.dur) pet.squash = null;
+    }
+
+    draw(updateBlink(dt));
+    requestAnimationFrame(frame);
+  }
+
+  function draw(open) {
+    let sy = 1 + Math.sin(time * 2.1) * 0.012;
+    let sx = 1 - Math.sin(time * 2.1) * 0.008;
+    let bob = -Math.sin(time * 2.1) * 1.4;
+
+    if (pet.squash) {
+      const k = pet.squash.t / pet.squash.dur;
+      const s = Math.sin(k * Math.PI) * (1 - k * 0.5) * pet.squash.amp * 1.25;
+      sy *= 1 - s;
+      sx *= 1 + s * 0.9;
+    }
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+    shadow();
+
+    /* 身体坐标系：锚点在脚底中心 */
+    ctx.save();
+    ctx.translate(PAD_X + W / 2, PAD_T + H);
+    ctx.scale(sx, sy);
+    ctx.translate(-W / 2, -H + bob);
+
+    ctx.drawImage(skin, 0, 0, W, H);          // ① 先画「皮」（没有眼睛的毛）
+    drawEye(eyeL, EYES.l.box, open);          // ② 再把两只眼睛盖上去
+    drawEye(eyeR, EYES.r.box, open);
+
+    ctx.restore();
+  }
+
+  /* ─────────── 第 2 步新增：画一只眼睛 ───────────
+     关键：高度变了，纵坐标要补 (bh - dh) / 2，
+     否则压扁是「从下往上收」，看起来像掉下来，不像闭眼。 */
+  function drawEye(img, box, open) {
+    const bx = box[0] * K;
+    const by = box[1] * K;
+    const bw = (box[2] - box[0]) * K;
+    const bh = (box[3] - box[1]) * K;
+
+    const dh = bh * Math.max(0.06, Math.min(1, open));
+    ctx.drawImage(img, bx, by + (bh - dh) / 2, bw, dh);
+  }
+
+  function shadow() {
+    const ox = PAD_X + W / 2;
+    const oy = PAD_T + H + PAD_B * 0.34;
+    const rx = W * 0.42;
+    const ry = Math.max(3, PAD_B * 0.18);
+    const g = ctx.createRadialGradient(ox, oy, 1, ox, oy, rx);
+    g.addColorStop(0, 'rgba(70,60,95,.30)');
+    g.addColorStop(1, 'rgba(70,60,95,0)');
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+})();
+</script>
+</body>
+</html>

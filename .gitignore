@@ -1,0 +1,9 @@
+# 构建产物（跑 ./desktop/macos/build.sh 会生成）
+desktop/macos/build/
+desktop/macos/.build/
+
+# 调试/截图临时目录
+.shots/
+.debug/
+
+.DS_Store

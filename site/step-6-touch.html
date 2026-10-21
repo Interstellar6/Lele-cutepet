@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 4 版 · 回应你 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 4 版 · 能回应你</h1>
+        <p class="lede">
+          目标：点它有反应、摸它会打呼噜。这一版把「被动播放」变成「有情绪」——
+          靠的是一张表情表和一个姿态对象。
+        </p>
+
+        <div class="meta">
+          <span class="tag">完整文件 · 455 行</span>
+          <span class="tag new">新增：表情表 / 气泡 / 爱心粒子 / 抚摸判定 / 腮红</span>
+          <a class="dl" href="../build/04-互动.html" download>下载这一版 ↓</a>
+        </div>
+
+        <div class="demo">
+          <div class="bar"><span class="dot"></span><b>点它一下</b> · 再在它身上来回划几下
+            <span class="spacer"></span>
+            <a href="../build/04-互动.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+          </div>
+          <iframe src="../build/04-互动.html" height="380" title="第 4 版演示"></iframe>
+        </div>
+
+        <h2>完整代码</h2>
+        <pre data-src="../build/04-互动.html" data-label="my-pet/index.html" class="lang-html">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;乐乐桌宠 · 第 4 版：能回应你&lt;/title&gt;
+&lt;!--
+  ============================================================
+  第 4 版：点它有反应，摸它会打呼噜
+  ------------------------------------------------------------
+  在第 3 版基础上新增：
+    · 表情系统（EMOTES）：每个表情只是一段「修改姿态」的数学
+    · 台词气泡（用 DOM，不画在 canvas 上）
+    · 爱心粒子
+    · 抚摸判定：在它身上来回划 3 个来回就呼噜
+    · 腮红（source-atop：只落在猫身上）
+  ============================================================
+--&gt;
+&lt;style&gt;
+  html, body { height: 100%; margin: 0; overflow: hidden;
+    font: 13px/1.6 -apple-system, &quot;PingFang SC&quot;, system-ui, sans-serif;
+    background: linear-gradient(180deg, #fbf7ff, #ece7f7); }
+  #desk { position: fixed; left: 0; right: 0; bottom: 0; height: 22vh;
+    background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+    border-top: 3px solid #e2cdb6; }
+  #stage { position: fixed; left: 0; top: 0; cursor: grab; touch-action: none; }
+  canvas { display: block; pointer-events: none; }
+  #hit { position: absolute; border-radius: 40%; cursor: grab; }
+  #tip { position: fixed; left: 14px; top: 12px; margin: 0;
+    color: #8d86a8; font-size: 12px; }
+
+  /* ─────────── 第 4 步新增：气泡 ───────────
+     用 DOM 而不是 canvas：自动换行、能选中、读屏软件能念 */
+  #bubble {
+    position: absolute; left: 50%; bottom: 100%;
+    transform: translate(-50%, 6px) scale(.86); transform-origin: bottom center;
+    max-width: 190px; padding: 7px 11px; border-radius: 13px;
+    background: #fff; border: 2px solid #3a3550; color: #3a3550;
+    font-size: 13px; font-weight: 600; line-height: 1.5; text-align: center;
+    white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity .16s, transform .22s cubic-bezier(.2, 1.5, .4, 1);
+  }
+  #bubble.on { opacity: 1; transform: translate(-50%, -2px) scale(1); }
+  #bubble::after {
+    content: &quot;&quot;; position: absolute; left: 50%; bottom: -8px; margin-left: -6px;
+    width: 12px; height: 12px; background: #fff;
+    border-right: 2px solid #3a3550; border-bottom: 2px solid #3a3550;
+    transform: rotate(45deg);
+  }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;desk&quot;&gt;&lt;/div&gt;
+&lt;div id=&quot;stage&quot;&gt;
+  &lt;canvas id=&quot;c&quot;&gt;&lt;/canvas&gt;
+  &lt;div id=&quot;bubble&quot; role=&quot;status&quot; aria-live=&quot;polite&quot;&gt;&lt;/div&gt;
+  &lt;div id=&quot;hit&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;p id=&quot;tip&quot;&gt;第 4 版 · 点它一下；在它身上来回划几下 → 打呼噜。&lt;/p&gt;
+
+&lt;script&gt;
+(function () {
+  &#x27;use strict&#x27;;
+
+  const SPRITE = { w: 811, h: 792 };
+  const W = 220;
+  const H = Math.round(W * SPRITE.h / SPRITE.w);
+  const PAD_X = Math.round(W * 0.20);
+  const PAD_T = Math.round(H * 0.32);
+  const PAD_B = Math.round(H * 0.16);
+  const CW = W + PAD_X * 2;
+  const CH = PAD_T + H + PAD_B;
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const K = W / SPRITE.w;
+
+  const EYES = {
+    l: { box: [154, 156, 362, 352] },
+    r: { box: [521, 176, 709, 360] }
+  };
+
+  /* ─────────── 第 4 步新增：腮红位置 ───────────
+     精灵坐标，落在脸颊上。改图之后这两个数要跟着调。 */
+  const CHEEKS = [{ x: 186, y: 356, r: 96 }, { x: 672, y: 372, r: 92 }];
+
+  /* ─────────── 第 4 步新增：台词 ─────────── */
+  const LINES = {
+    happy: [&#x27;嘿嘿～&#x27;, &#x27;好开心！&#x27;, &#x27;喵呜～&#x27;],
+    shy:   [&#x27;别、别盯着看…&#x27;, &#x27;讨厌啦&#x27;, &#x27;脸有点热…&#x27;],
+    angry: [&#x27;哼！不理你了&#x27;, &#x27;再点试试看&#x27;, &#x27;喵喵喵！&#x27;],
+    pat:   [&#x27;呼噜呼噜…&#x27;, &#x27;好舒服～&#x27;, &#x27;再摸一下下&#x27;]
+  };
+  const pick = (arr) =&gt; arr[Math.floor(Math.random() * arr.length)];
+
+  /* ─────────── 第 4 步新增：表情 ───────────
+     每个表情就是一个函数：拿到当前姿态 p 和进度 k（0~1），随便改。
+     好处：表情可以叠加（开心 + 眨眼 + 呼吸同时成立）。 */
+  const EMOTES = {
+    joy: { dur: 1.1, line: &#x27;happy&#x27;, apply(p, k) {
+      const w = Math.sin(k * Math.PI * 3) * (1 - k);     // (1-k) 让尾巴自然衰减
+      p.sy *= 1 + 0.09 * w;
+      p.sx *= 1 - 0.05 * w;
+      p.rot += Math.sin(k * Math.PI * 4) * 0.05 * (1 - k);
+      p.blush = Math.max(p.blush, 0.75 * Math.sin(k * Math.PI));
+      p.bob -= Math.abs(Math.sin(k * Math.PI)) * 6;
+    }},
+    shy: { dur: 1.4, line: &#x27;shy&#x27;, apply(p, k) {
+      const a = Math.sin(Math.min(1, k * 1.6) * Math.PI) * (k &gt; 0.75 ? (1 - k) / 0.25 : 1);
+      p.blush = Math.max(p.blush, 0.95 * a);
+      p.rot += 0.12 * a;
+      p.gazeX -= 9 * a;                                   // 害羞：眼睛往旁边躲
+    }},
+    angry: { dur: 1.0, line: &#x27;angry&#x27;, apply(p, k) {
+      p.rot += Math.sin(k * Math.PI * 12) * 0.05 * (1 - k);
+      p.sx *= 1 + 0.04 * Math.sin(k * Math.PI * 6) * (1 - k);
+      p.eyeOpen = Math.min(p.eyeOpen, 0.75);
+    }}
+  };
+
+  const canvas = document.getElementById(&#x27;c&#x27;);
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  canvas.width = CW * DPR;
+  canvas.height = CH * DPR;
+  canvas.style.width = CW + &#x27;px&#x27;;
+  canvas.style.height = CH + &#x27;px&#x27;;
+
+  const stage = document.getElementById(&#x27;stage&#x27;);
+  const hit = document.getElementById(&#x27;hit&#x27;);
+  const bubbleEl = document.getElementById(&#x27;bubble&#x27;);
+  const floorY = () =&gt; window.innerHeight * 0.78 - H;
+
+  const pet = {
+    x: window.innerWidth * 0.72 - W / 2,
+    y: floorY(),
+    squash: null,
+    facing: 1
+  };
+
+  /* ─────────── 第 4 步新增：表情 / 腮红 / 粒子状态 ─────────── */
+  let emote = null;        // { name, t }
+  let blush = 0;           // 0~1
+  const parts = [];        // 爱心粒子
+
+  function render() {
+    stage.style.transform =
+      &#x27;translate3d(&#x27; + Math.round(pet.x - PAD_X) + &#x27;px,&#x27; +
+                       Math.round(pet.y - PAD_T) + &#x27;px,0)&#x27;;
+  }
+
+  hit.style.left = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.right = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.top = (PAD_T + H * 0.18) + &#x27;px&#x27;;
+  hit.style.bottom = PAD_B + &#x27;px&#x27;;
+
+  /* 开局和窗口变化时都重新贴地。
+     注意：别信「解析 HTML 那一刻」的窗口尺寸 —— 它可能还不是最终尺寸，
+     所以图片加载完要再 layout() 一次。 */
+  function layout() {
+    pet.y = floorY();
+    pet.x = Math.min(pet.x, window.innerWidth - W);
+    render();
+  }
+  addEventListener(&#x27;resize&#x27;, layout);
+
+  let skin = null, eyeL = null, eyeR = null;
+  Promise.all([
+    &#x27;../assets/lele-skin.png&#x27;, &#x27;../assets/lele-eye-l.png&#x27;, &#x27;../assets/lele-eye-r.png&#x27;
+  ].map(loadImage)).then((arr) =&gt; {
+    skin = arr[0]; eyeL = arr[1]; eyeR = arr[2];
+    layout();
+    requestAnimationFrame(frame);
+  });
+  function loadImage(src) {
+    return new Promise((res, rej) =&gt; {
+      const i = new Image();
+      i.onload = () =&gt; res(i);
+      i.onerror = rej;
+      i.src = src;
+    });
+  }
+
+  const blink = { t: 0, dur: 0, next: 1.5 + Math.random() * 3 };
+
+  function updateBlink(dt) {
+    if (blink.dur &gt; 0) {
+      blink.t += dt;
+      const k = blink.t / blink.dur;
+      if (k &gt;= 1) { blink.dur = 0; blink.next = 1.6 + Math.random() * 4; return 1; }
+      return k &lt; 0.3 ? 1 - k / 0.3 : (k - 0.3) / 0.7;
+    }
+    blink.next -= dt;
+    if (blink.next &lt;= 0) { blink.dur = 0.32; blink.t = 0; }
+    return 1;
+  }
+
+  const pointer = { x: 0, y: 0, seen: false };
+  const gaze = { x: 0, y: 0, tx: 0, ty: 0 };
+
+  /* ─────────── 第 4 步新增：抚摸判定 ───────────
+     数「横向来回变向」的次数：3 个来回就呼噜。
+     pat.cool 是冷却，必须每帧递减，否则点一次之后永久失效。 */
+  const pat = { dir: 0, count: 0, cool: 0 };
+
+  addEventListener(&#x27;pointermove&#x27;, (e) =&gt; {
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    pointer.seen = true;
+    detectPat(e);
+  });
+
+  function detectPat(e) {
+    if (pat.cool &gt; 0) { pat.dir = 0; return; }
+    const r = stage.getBoundingClientRect();
+    const inside = e.clientX &gt; r.left - 12 &amp;&amp; e.clientX &lt; r.right + 12 &amp;&amp;
+                   e.clientY &gt; r.top - 12 &amp;&amp; e.clientY &lt; r.bottom + 12;
+    if (!inside) { pat.dir = 0; return; }
+
+    if (pointer.lx == null) { pointer.lx = e.clientX; return; }
+    const dx = e.clientX - pointer.lx;
+    pointer.lx = e.clientX;
+    if (Math.abs(dx) &lt; 2) return;
+
+    const dir = dx &gt; 0 ? 1 : -1;
+    if (pat.dir &amp;&amp; dir !== pat.dir &amp;&amp; ++pat.count &gt;= 3) {
+      pat.count = 0;
+      purr();
+      return;
+    }
+    pat.dir = dir;
+  }
+
+  function purr() {
+    pat.cool = 2.5;
+    blush = 1;
+    emote = { name: &#x27;joy&#x27;, t: 0 };
+    spawn(5);
+    say(pick(LINES.pat));
+  }
+
+  /* ─────────── 第 4 步新增：点一下 → 随机表情 ─────────── */
+  let lastClickAt = 0;
+  let clicks = 0;
+
+  hit.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+    e.preventDefault();
+    const now = performance.now();
+    clicks = now - lastClickAt &lt; 1600 ? clicks + 1 : 1;   // 连点 5 次炸毛
+    lastClickAt = now;
+
+    const name = clicks &gt;= 5 ? &#x27;angry&#x27; : pick([&#x27;joy&#x27;, &#x27;shy&#x27;, &#x27;angry&#x27;]);
+    emote = { name, t: 0 };
+    blush = Math.max(blush, 0.5);
+    if (name === &#x27;joy&#x27;) spawn(3);
+
+    const e2 = EMOTES[name];
+    if (e2.line &amp;&amp; Math.random() &lt; 0.8) say(pick(LINES[e2.line]));
+  });
+
+  /* ─────────── 第 4 步新增：气泡 ─────────── */
+  let sayTimer = 0;
+  function say(text) {
+    bubbleEl.textContent = text;
+    bubbleEl.classList.add(&#x27;on&#x27;);
+    clearTimeout(sayTimer);
+    sayTimer = setTimeout(() =&gt; bubbleEl.classList.remove(&#x27;on&#x27;), 2600);
+  }
+
+  /* ─────────── 第 4 步新增：爱心粒子 ─────────── */
+  function spawn(n) {
+    for (let i = 0; i &lt; n; i++) {
+      const life = 0.9 + Math.random() * 0.6;
+      parts.push({
+        x: PAD_X + W * (0.25 + Math.random() * 0.5),
+        y: PAD_T + H * 0.2,
+        vx: (Math.random() - 0.5) * 70,
+        vy: -60 - Math.random() * 70,
+        life, max: life,
+        s: 0.7 + Math.random() * 0.6,
+        rot: 0,
+        rv: (Math.random() - 0.5) * 4
+      });
+    }
+  }
+
+  function updateGaze(dt) {
+    if (pointer.seen) {
+      const midX = pet.x + W / 2;
+      const midY = pet.y + H * 0.34;
+      const dx = pointer.x - midX;
+      const dy = pointer.y - midY;
+      const d = Math.hypot(dx, dy) || 1;
+      const reach = Math.min(1, Math.max(0.25, d / 240));
+      gaze.tx = (dx / d) * 15 * reach;
+      gaze.ty = (dy / d) * 10 * reach;
+    }
+    const rate = Math.min(1, dt * 10);
+    gaze.x += (gaze.tx - gaze.x) * rate;
+    gaze.y += (gaze.ty - gaze.y) * rate;
+  }
+
+  let last = performance.now();
+  let time = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    time += dt;
+
+    if (pet.squash) {
+      pet.squash.t += dt;
+      if (pet.squash.t &gt;= pet.squash.dur) pet.squash = null;
+    }
+    if (emote) {
+      emote.t += dt;
+      if (emote.t &gt;= EMOTES[emote.name].dur) emote = null;
+    }
+    if (pat.cool &gt; 0) pat.cool = Math.max(0, pat.cool - dt);
+    blush = Math.max(0, blush - dt * 0.35);
+
+    updateGaze(dt);
+    draw(updateBlink(dt), dt);
+    requestAnimationFrame(frame);
+  }
+
+  /* ─────────── 第 4 步新增：把「这一帧的姿态」抽出来 ───────────
+     所有表情、呼吸、挤压都只改这个对象，最后统一交给 draw 去画。
+     这样加表情不用碰绘制代码。 */
+  function computePose(open) {
+    const p = {
+      rot: 0,
+      sx: 1 - Math.sin(time * 2.1) * 0.008,
+      sy: 1 + Math.sin(time * 2.1) * 0.012,
+      bob: -Math.sin(time * 2.1) * 1.4,
+      gazeX: gaze.x,
+      gazeY: gaze.y,
+      eyeOpen: open,
+      blush
+    };
+
+    if (pet.squash) {
+      const k = pet.squash.t / pet.squash.dur;
+      const s = Math.sin(k * Math.PI) * (1 - k * 0.5) * pet.squash.amp * 1.25;
+      p.sy *= 1 - s;
+      p.sx *= 1 + s * 0.9;
+    }
+
+    if (emote) {
+      const e = EMOTES[emote.name];
+      e.apply(p, Math.min(1, emote.t / e.dur));
+    }
+
+    p.eyeOpen = Math.max(0.06, Math.min(1, p.eyeOpen));
+    return p;
+  }
+
+  function draw(open, dt) {
+    const p = computePose(open);
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+    shadow();
+
+    ctx.save();
+    ctx.translate(PAD_X + W / 2, PAD_T + H);
+    ctx.rotate(p.rot);
+    ctx.scale(p.sx * pet.facing, p.sy);
+    ctx.translate(-W / 2, -H + p.bob);
+
+    ctx.drawImage(skin, 0, 0, W, H);
+    drawEye(eyeL, EYES.l.box, p);
+    drawEye(eyeR, EYES.r.box, p);
+
+    /* ─────────── 第 4 步新增：腮红 ───────────
+       source-atop = 只画在「已经有像素」的地方，也就是猫身上，
+       所以腮红不会糊到画布空白处，也不用手动抠形状。 */
+    if (p.blush &gt; 0.02) {
+      ctx.globalCompositeOperation = &#x27;source-atop&#x27;;
+      for (const c of CHEEKS) {
+        const cx = c.x * K;
+        const cy = c.y * K;
+        const r = c.r * K;
+        const g = ctx.createRadialGradient(cx, cy, r * 0.1, cx, cy, r);
+        g.addColorStop(0, &#x27;rgba(255,120,155,&#x27; + (0.55 * p.blush).toFixed(3) + &#x27;)&#x27;);
+        g.addColorStop(1, &#x27;rgba(255,160,185,0)&#x27;);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, r, r * 0.72, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = &#x27;source-over&#x27;;
+    }
+
+    ctx.restore();
+
+    drawParticles(dt);
+  }
+
+  function drawEye(img, box, p) {
+    const bx = box[0] * K;
+    const by = box[1] * K;
+    const bw = (box[2] - box[0]) * K;
+    const bh = (box[3] - box[1]) * K;
+    const dh = bh * p.eyeOpen;
+    const gx = p.gazeX * pet.facing;
+    ctx.drawImage(img, bx + gx * K, by + p.gazeY * K + (bh - dh) / 2, bw, dh);
+  }
+
+  /* ─────────── 第 4 步新增：画爱心 ───────────
+     画在身体变换之外，所以不受挤压影响 */
+  function drawParticles(dt) {
+    for (let i = parts.length - 1; i &gt;= 0; i--) {
+      const q = parts[i];
+      q.life -= dt;
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      q.vy += 130 * dt;
+      q.rot += q.rv * dt;
+      if (q.life &lt;= 0) { parts.splice(i, 1); continue; }
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, q.life / q.max);
+      ctx.translate(q.x, q.y);
+      ctx.rotate(q.rot);
+      ctx.scale(q.s, q.s);
+      ctx.fillStyle = &#x27;#ff6b95&#x27;;
+      ctx.beginPath();
+      ctx.moveTo(0, 4);
+      ctx.bezierCurveTo(-7, -2, -5, -9, 0, -5);
+      ctx.bezierCurveTo(5, -9, 7, -2, 0, 4);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function shadow() {
+    const ox = PAD_X + W / 2;
+    const oy = PAD_T + H + PAD_B * 0.34;
+    const rx = W * 0.42;
+    const ry = Math.max(3, PAD_B * 0.18);
+    const g = ctx.createRadialGradient(ox, oy, 1, ox, oy, rx);
+    g.addColorStop(0, &#x27;rgba(70,60,95,.30)&#x27;);
+    g.addColorStop(1, &#x27;rgba(70,60,95,0)&#x27;);
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+
+        <h2>新增：表情 = 一小段数学</h2>
+        <p>
+          搜 <code>EMOTES</code>。每个表情就是一个 <code>apply(p, k)</code>：
+          拿到当前姿态 <code>p</code> 和进度 <code>k</code>（0→1），随便改。
+        </p>
+        <div class="codeblock"><pre data-label="index.html" class="lang-js">joy: { dur: 1.1, line: 'happy', apply(p, k) {
+  const w = Math.sin(k * Math.PI * 3) * (1 - k);   // (1-k) 让尾巴自然衰减
+  p.sy *= 1 + 0.09 * w;                             // 纵向弹一下
+  p.rot += Math.sin(k * Math.PI * 4) * 0.05 * (1 - k);   // 抖一下
+  p.blush = Math.max(p.blush, 0.75 * Math.sin(k * Math.PI));
+}}</pre></div>
+        <p>
+          配套的是 <code>computePose()</code>：呼吸、挤压、表情、腮红都只改同一个姿态对象，
+          最后统一交给 <code>draw()</code>。所以表情能<b>叠加</b>（开心 + 眨眼 + 呼吸同时成立），
+          加新表情也不用碰绘制代码。
+        </p>
+
+        <div class="learn">
+          <span class="ic">🧩</span>
+          <div>为什么气泡不给 canvas 画？<code>position: absolute</code> 是怎么贴上去的？ <a href="basics-html.html">附录 A · 定位 →</a></div>
+        </div>
+
+        <div class="learn">
+          <span class="ic">🎨</span>
+          <div><code>source-atop</code> 到底是什么？ <a href="basics-canvas.html">附录 C · 合成模式 →</a></div>
+        </div>
+
+        <h2>新增：气泡用 DOM，不要画在 canvas 上</h2>
+        <div class="codeblock"><pre data-label="index.html" class="lang-html">&lt;div id="stage"&gt;
+  &lt;canvas id="c"&gt;&lt;/canvas&gt;
+  &lt;div id="bubble" role="status" aria-live="polite"&gt;&lt;/div&gt;
+&lt;/div&gt;</pre></div>
+        <p>
+          自动换行、能选中、读屏软件能念、样式随便调。气泡放在 <code>#stage</code> 里，
+          所以会跟着宠物一起移动。
+        </p>
+
+        <h2>新增：抚摸 = 数「来回变向」</h2>
+        <div class="codeblock"><pre data-label="index.html" class="lang-js">const dir = dx &gt; 0 ? 1 : -1;
+if (pat.dir &amp;&amp; dir !== pat.dir &amp;&amp; ++pat.count &gt;= 3) { purr(); }
+pat.dir = dir;</pre></div>
+        <div class="callout warn">
+          <div class="ic">⚠️</div>
+          <div class="bd">
+            <span class="t">冷却必须每帧递减</span>
+            <code>pat.cool</code> 如果只判断 <code>&gt; 0</code> 却忘了
+            <code>pat.cool -= dt</code>，结果就是「点它一次之后，这辈子都摸不动了」。
+            （我踩过。）
+          </div>
+        </div>
+
+        <h2>新增：腮红用 source-atop</h2>
+        <p>
+          腮红要「只落在猫身上」，不需要手动抠形状 —— 换个合成模式就行：
+        </p>
+        <div class="codeblock"><pre data-label="index.html" class="lang-js">ctx.globalCompositeOperation = 'source-atop';   // 只画在已经有像素的地方
+// ……画粉色径向渐变……
+ctx.globalCompositeOperation = 'source-over';   // 记得改回来</pre></div>
+
+        <h2>验证</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="t1"><label for="t1">点它一下：随机一个表情 + 一句台词</label></li>
+          <li><input type="checkbox" id="t2"><label for="t2">连点 5 次它会「炸毛」（生气表情）</label></li>
+          <li><input type="checkbox" id="t3"><label for="t3">在它身上来回划 3 个来回 → 脸红 + 冒爱心 + 呼噜台词</label></li>
+          <li><input type="checkbox" id="t4"><label for="t4">腮红没有糊到猫身体外面</label></li>
+          <li><input type="checkbox" id="t5"><label for="t5">摸完等两秒，还能再摸一次（冷却会归零）</label></li>
+        </ul>
+        <p class="done-count"></p>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">想加自己的表情</span>
+            往 <code>EMOTES</code> 里加一项就行，五行数学。
+            然后在 <code>poke()</code> 的随机池里加上它的名字。
+          </div>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

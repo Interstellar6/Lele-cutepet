@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>乐乐 · 仪表盘</title>
+<!--
+  ============================================================
+  桌面版的控制面板（右键桌宠打开）
+  ------------------------------------------------------------
+  · 页面背景透明，卡片自带圆角和投影
+  · 所有操作都通过 window.webkit.messageHandlers.dash 发给外壳
+  · 外壳把桌宠的当前状态回灌到 window.dashUpdate()
+  ============================================================
+-->
+<style>
+  :root{
+    --ink:#3f3a55; --ink2:#6f688c; --ink3:#9891b0;
+    --pink:#ff4d79; --pink-soft:#fff0f4; --line:rgba(120,110,170,.16);
+  }
+  html,body{
+    margin:0; height:100%; overflow:hidden;
+    background:transparent !important;
+    font:13px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC",system-ui,sans-serif;
+    color:var(--ink); -webkit-user-select:none; user-select:none;
+    cursor:default;
+  }
+  #pad{ padding:12px; box-sizing:border-box; height:100%; }
+
+  #card{
+    height:100%; box-sizing:border-box; overflow:hidden;
+    background:#fff; border-radius:16px;
+    box-shadow:0 18px 40px rgba(60,50,100,.22), 0 2px 8px rgba(60,50,100,.10);
+    display:flex; flex-direction:column;
+    border:1px solid rgba(120,110,170,.12);
+  }
+
+  /* ── 头部 ── */
+  header{
+    display:flex; align-items:center; gap:8px;
+    padding:12px 14px 10px; border-bottom:1px solid var(--line);
+  }
+  header .dot{width:8px;height:8px;border-radius:50%;background:var(--pink);
+    box-shadow:0 0 0 4px rgba(255,77,121,.16);flex:none}
+  header b{font-size:14px;letter-spacing:.2px}
+  header .sp{flex:1}
+  header button{
+    border:0;background:transparent;color:var(--ink3);font-size:15px;
+    width:24px;height:24px;border-radius:7px;cursor:pointer;line-height:1;
+  }
+  header button:hover{background:var(--pink-soft);color:var(--pink)}
+
+  /* ── 状态区 ── */
+  #status{padding:9px 14px 10px;border-bottom:1px solid var(--line);background:#fcfbff}
+  #said{
+    min-height:20px;font-size:12.5px;color:var(--ink);font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  #said.empty{color:var(--ink3);font-weight:400}
+  #meta{font-size:11.5px;color:var(--ink3);margin-top:3px}
+
+  /* ── 内容 ── */
+  #body{padding:12px 14px 14px;overflow-y:auto;flex:1}
+  #body{scrollbar-width:none}
+  #body::-webkit-scrollbar{width:0;height:0}   /* 内容刚好放得下，不要露出滚动条 */
+
+  .label{font-size:11px;font-weight:800;letter-spacing:.08em;color:var(--ink3);
+    text-transform:uppercase;margin:0 0 7px}
+  .row{display:flex;gap:6px;margin-bottom:6px}
+  .row:last-child{margin-bottom:0}
+  button.act{
+    flex:1;min-width:0;padding:7px 4px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--ink);
+    font:600 12px/1.3 inherit;white-space:nowrap;
+    transition:transform .1s, box-shadow .15s, border-color .15s;
+  }
+  button.act:hover{border-color:rgba(255,77,121,.55);color:#d93b6c;
+    box-shadow:0 4px 10px rgba(255,77,121,.14);transform:translateY(-1px)}
+  button.act:active{transform:translateY(1px) scale(.98)}
+
+  .sep{height:1px;background:var(--line);margin:12px 0}
+
+  /* 滑块 */
+  .field{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink2)}
+  .field input[type=range]{flex:1;accent-color:var(--pink);min-width:0}
+  .field .val{width:34px;text-align:right;font:600 11.5px ui-monospace,Menlo,monospace;color:var(--ink3)}
+
+  /* 开关 */
+  .sw{display:flex;align-items:center;justify-content:space-between;
+    padding:5px 0;font-size:12.5px;color:var(--ink2)}
+  .sw span small{color:var(--ink3);font-size:11px;margin-left:5px}
+  .sw input{width:16px;height:16px;accent-color:var(--pink);cursor:pointer;margin:0}
+
+  /* 底部 */
+  footer{display:flex;gap:6px;padding:10px 14px 12px;border-top:1px solid var(--line);background:#fcfbff}
+  footer button{
+    flex:1;padding:7px 4px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:#fff;color:var(--ink2);
+    font:600 11.5px/1.3 inherit;
+  }
+  footer button:hover{border-color:var(--line);background:#f7f4ff;color:var(--ink)}
+  footer button.danger:hover{background:#fff0f4;border-color:#ffd0dd;color:#c2185b}
+</style>
+</head>
+<body>
+<div id="pad">
+  <div id="card">
+    <header>
+      <span class="dot"></span><b>乐乐 · 仪表盘</b>
+      <span class="sp"></span>
+      <button id="close" title="关闭（Esc）">✕</button>
+    </header>
+
+    <div id="status">
+      <div id="said" class="empty">……</div>
+      <div id="meta">状态：<span id="st">读取中</span></div>
+    </div>
+
+    <div id="body">
+      <p class="label">陪它玩</p>
+      <div class="row">
+        <button class="act" data-a="pat">摸摸头</button>
+        <button class="act" data-a="hop">蹦一下</button>
+        <button class="act" data-a="spin">转一圈</button>
+      </div>
+      <div class="row">
+        <button class="act" data-a="sleep">睡一会儿</button>
+        <button class="act" data-a="say">说句话</button>
+        <button class="act" data-a="home">回到桌上</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <p class="label">外观与行为</p>
+      <div class="field">
+        <span>大小</span>
+        <input id="size" type="range" min="160" max="280" step="10" value="220">
+        <span class="val" id="sizeVal">220</span>
+      </div>
+      <div class="sw">
+        <span>自己散步 <small>会在屏幕上溜达</small></span>
+        <input type="checkbox" id="roam">
+      </div>
+      <div class="sw">
+        <span>音效 <small>喵、呼噜</small></span>
+        <input type="checkbox" id="sound" checked>
+      </div>
+      <div class="sw">
+        <span>总在最前 <small>盖住其它窗口</small></span>
+        <input type="checkbox" id="top" checked>
+      </div>
+    </div>
+
+    <footer>
+      <button id="reload">重新加载</button>
+      <button id="hide">隐藏桌宠</button>
+      <button id="quit" class="danger">退出乐乐</button>
+    </footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var bridge = (window.webkit && window.webkit.messageHandlers &&
+                window.webkit.messageHandlers.dash) || null;
+  function send(obj) { if (bridge) { try { bridge.postMessage(obj); } catch (e) {} } }
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ── 按钮 ── */
+  document.querySelectorAll('[data-a]').forEach(function (b) {
+    b.addEventListener('click', function () { send({ cmd: 'dash', action: b.dataset.a }); });
+  });
+
+  /* ── 滑块：拖动时实时改，松手才写配置 ── */
+  var size = $('size'), sizeVal = $('sizeVal');
+  size.addEventListener('input', function () {
+    sizeVal.textContent = size.value;
+    send({ cmd: 'dash', action: 'size', value: parseInt(size.value, 10), live: true });
+  });
+  size.addEventListener('change', function () {
+    send({ cmd: 'dash', action: 'size', value: parseInt(size.value, 10), live: false });
+  });
+
+  /* ── 开关 ── */
+  [['roam', 'roam'], ['sound', 'sound'], ['top', 'top']].forEach(function (pair) {
+    var el = $(pair[0]);
+    el.addEventListener('change', function () {
+      send({ cmd: 'dash', action: pair[1], value: el.checked });
+    });
+  });
+
+  /* ── 底部 ── */
+  $('close').addEventListener('click', function () { send({ cmd: 'dash', action: 'close' }); });
+  $('reload').addEventListener('click', function () { send({ cmd: 'dash', action: 'reload' }); });
+  $('hide').addEventListener('click', function () { send({ cmd: 'dash', action: 'hide' }); });
+  $('quit').addEventListener('click', function () { send({ cmd: 'dash', action: 'quit' }); });
+
+  /* ── Esc 关闭 ── */
+  addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') send({ cmd: 'dash', action: 'close' });
+  });
+
+  /* 面板里不要滚动/缩放整页 */
+  addEventListener('wheel', function (e) {
+    if (!e.target.closest('#body')) e.preventDefault();
+  }, { passive: false });
+
+  /* ── 外壳回灌状态 ── */
+  var NAME = { idle: '在发呆', sleep: '睡觉中', drag: '被拎着', fly: '飞起来了' };
+  window.dashUpdate = function (json) {
+    var s;
+    try { s = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { return; }
+
+    var said = $('said');
+    if (s.said) { said.textContent = '「' + s.said + '」'; said.classList.remove('empty'); }
+    else { said.textContent = '……'; said.classList.add('empty'); }
+
+    $('st').textContent = NAME[s.state] || s.state || '—';
+
+    if (typeof s.size === 'number') {
+      size.value = s.size;
+      sizeVal.textContent = s.size;
+    }
+    if (typeof s.roam === 'boolean') $('roam').checked = s.roam;
+    if (typeof s.sound === 'boolean') $('sound').checked = s.sound;
+    if (typeof s.top === 'boolean') $('top').checked = s.top;
+  };
+
+  /* 开场先亮一下，避免「读取中」停留太久 */
+  send({ cmd: 'dashReady' });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>乐乐桌宠 · 第 1 版：呼吸</title>
+<!--
+  ============================================================
+  第 1 版：让它站在页面上，会呼吸，点一下会挤压
+  ------------------------------------------------------------
+  · 只用一张图（assets/lele.png），不需要眼睛素材
+  · 直接双击本文件就能看效果，不需要服务器
+  · 这就是全部代码，没有隐藏部分
+  ============================================================
+-->
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden;
+    font: 13px/1.6 -apple-system, "PingFang SC", system-ui, sans-serif;
+    background: linear-gradient(180deg, #fbf7ff, #ece7f7); }
+  /* 桌子：桌宠就站在这条线的上沿 */
+  #desk { position: fixed; left: 0; right: 0; bottom: 0; height: 22vh;
+    background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+    border-top: 3px solid #e2cdb6; }
+  /* 舞台本身铺在左上角，靠 transform 移动 */
+  #stage { position: fixed; left: 0; top: 0; cursor: grab; touch-action: none; }
+  canvas { display: block; }
+  /* 命中区：只覆盖猫的身子，点四周空白不会触发 */
+  #hit { position: absolute; border-radius: 40%; cursor: grab; }
+  #tip { position: fixed; left: 14px; top: 12px; margin: 0;
+    color: #8d86a8; font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="desk"></div>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="hit"></div>
+</div>
+<p id="tip">第 1 版 · 点它一下会挤压。往右看：它只会呼吸，还不会眨眼。</p>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─────────── 素材尺寸 ───────────
+     SPRITE 是抠图后的真实像素，W 是我想显示多宽。
+     只要换 SPRITE，这个文件就能画任何一张图。 */
+  const SPRITE = { w: 811, h: 792 };
+  const W = 220;
+  const H = Math.round(W * SPRITE.h / SPRITE.w);
+
+  /* ─────────── 画布留白 ───────────
+     动作一大就会画出角色边界，所以画布要比角色大一圈。
+     不留的话，一挤压、一跳，边缘就被裁掉了（耳朵最先没）。 */
+  const PAD_X = Math.round(W * 0.20);   // 左右：倾斜用
+  const PAD_T = Math.round(H * 0.32);   // 上面：跳起来用
+  const PAD_B = Math.round(H * 0.16);   // 下面：影子和挤压用
+  const CW = W + PAD_X * 2;
+  const CH = PAD_T + H + PAD_B;
+
+  /* ─────────── 高分屏 ───────────
+     画布后备缓冲按物理像素，样式尺寸按逻辑像素，
+     再给 ctx 一个 setTransform，后面就能一直按逻辑像素思考。 */
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  canvas.width = CW * DPR;
+  canvas.height = CH * DPR;
+  canvas.style.width = CW + 'px';
+  canvas.style.height = CH + 'px';
+
+  /* ─────────── 位置 ───────────
+     pet.x / pet.y 永远指「角色本体」的左上角，
+     画布 DOM 的位置由 render() 换算（减去留白）。 */
+  const stage = document.getElementById('stage');
+  const hit = document.getElementById('hit');
+
+  // 地面 = 桌子的上沿
+  const floorY = () => window.innerHeight * 0.78 - H;
+
+  const pet = {
+    x: window.innerWidth * 0.72 - W / 2,
+    y: floorY(),
+    squash: null          // 挤压动画：{ t, dur, amp }
+  };
+
+  function render() {
+    stage.style.transform =
+      'translate3d(' + Math.round(pet.x - PAD_X) + 'px,' +
+                       Math.round(pet.y - PAD_T) + 'px,0)';
+  }
+
+  // 命中区贴合猫的身子（不是整个画布）
+  hit.style.left = (PAD_X + W * 0.12) + 'px';
+  hit.style.right = (PAD_X + W * 0.12) + 'px';
+  hit.style.top = (PAD_T + H * 0.18) + 'px';
+  hit.style.bottom = PAD_B + 'px';
+
+  /* ─────────── 素材 ─────────── */
+  const img = new Image();
+  img.onload = () => { render(); requestAnimationFrame(frame); };
+  img.src = '../assets/lele.png';
+
+  /* ─────────── 交互：点一下挤压 ─────────── */
+  hit.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    pet.squash = { t: 0, dur: 0.45, amp: 0.22 };
+  });
+  /* 开局和窗口变化时都重新贴地。
+     注意：别信「解析 HTML 那一刻」的窗口尺寸 —— 它可能还不是最终尺寸，
+     所以图片加载完要再 layout() 一次。 */
+  function layout() {
+    pet.y = floorY();
+    pet.x = Math.min(pet.x, window.innerWidth - W);
+    render();
+  }
+  addEventListener('resize', layout);
+
+  /* ─────────── 每帧 ─────────── */
+  let last = performance.now();
+  let time = 0;
+
+  function frame(now) {
+    // dt 封顶：切走标签页再回来时，别让时间跳一大步
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    time += dt;
+
+    if (pet.squash) {
+      pet.squash.t += dt;
+      if (pet.squash.t >= pet.squash.dur) pet.squash = null;
+    }
+
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function draw() {
+    /* 呼吸：慢速正弦。纵向涨、横向缩一点，像被压扁的果冻 */
+    let sy = 1 + Math.sin(time * 2.1) * 0.012;
+    let sx = 1 - Math.sin(time * 2.1) * 0.008;
+    let bob = -Math.sin(time * 2.1) * 1.4;
+
+    /* 挤压：先压扁再弹回来，(1 - k*0.5) 让回弹慢慢衰减 */
+    if (pet.squash) {
+      const k = pet.squash.t / pet.squash.dur;
+      const s = Math.sin(k * Math.PI) * (1 - k * 0.5) * pet.squash.amp * 1.25;
+      sy *= 1 - s;
+      sx *= 1 + s * 0.9;
+    }
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+
+    /* 影子：贴地时才明显（这一版它不动，但先铺好路） */
+    shadow();
+
+    /* ─────────── 关键：锚点在脚底中心 ───────────
+       ① 原点挪到脚底中心
+       ② 缩放（所以压扁时脚不离地）
+       ③ 把角色左上角摆回原点，再画 */
+    ctx.save();
+    ctx.translate(PAD_X + W / 2, PAD_T + H);
+    ctx.scale(sx, sy);
+    ctx.translate(-W / 2, -H + bob);
+    ctx.drawImage(img, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  function shadow() {
+    const ox = PAD_X + W / 2;
+    const oy = PAD_T + H + PAD_B * 0.34;
+    const rx = W * 0.42;
+    const ry = Math.max(3, PAD_B * 0.18);
+    const g = ctx.createRadialGradient(ox, oy, 1, ox, oy, rx);
+    g.addColorStop(0, 'rgba(70,60,95,.30)');
+    g.addColorStop(1, 'rgba(70,60,95,0)');
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+})();
+</script>
+</body>
+</html>

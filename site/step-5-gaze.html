@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 3 版 · 视线 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 3 版 · 盯着你</h1>
+        <p class="lede">
+          目标：眼睛跟着鼠标转。原理还是动同一层贴片 —— 这次是
+          <b>朝鼠标方向平移几个像素</b>，空出来的一侧露出皮上的眼窝。
+        </p>
+
+        <div class="meta">
+          <span class="tag">完整文件 · 271 行</span>
+          <span class="tag new">新增：指针追踪 / 凝视向量 / 缓动 / facing 镜像</span>
+          <a class="dl" href="../build/03-视线.html" download>下载这一版 ↓</a>
+        </div>
+
+        <div class="demo">
+          <div class="bar"><span class="dot"></span><b>把鼠标在框里移动</b> · 左上角两个开关可以现场复现 bug
+            <span class="spacer"></span>
+            <a href="../build/03-视线.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+          </div>
+          <iframe src="../build/03-视线.html" height="380" title="第 3 版演示"></iframe>
+          <div class="cap">
+            勾 <b>水平镜像</b>：整只猫翻个面；再勾 <b>复现 bug</b>：眼睛立刻跟反。
+          </div>
+        </div>
+
+        <h2>完整代码</h2>
+        <pre data-src="../build/03-视线.html" data-label="my-pet/index.html" class="lang-html">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;乐乐桌宠 · 第 3 版：视线跟随&lt;/title&gt;
+&lt;!--
+  ============================================================
+  第 3 版：让它盯着你的鼠标
+  ------------------------------------------------------------
+  在第 2 版基础上新增：
+    · 记录鼠标位置，算出「相对两眼中间」的方向
+    · 把眼睛贴片朝那个方向平移几个像素（空出来的一侧露出眼窝）
+    · 缓动，别瞬间跳
+    · 一个「水平镜像」开关，用来现场复现「镜像后眼球跟反」的 bug
+  ============================================================
+--&gt;
+&lt;style&gt;
+  html, body { height: 100%; margin: 0; overflow: hidden; cursor: crosshair;
+    font: 13px/1.6 -apple-system, &quot;PingFang SC&quot;, system-ui, sans-serif;
+    background: linear-gradient(180deg, #fbf7ff, #ece7f7); }
+  #desk { position: fixed; left: 0; right: 0; bottom: 0; height: 22vh;
+    background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+    border-top: 3px solid #e2cdb6; }
+  #stage { position: fixed; left: 0; top: 0; cursor: grab; touch-action: none; }
+  canvas { display: block; }
+  #hit { position: absolute; border-radius: 40%; cursor: grab; }
+  #tip { position: fixed; left: 14px; top: 12px; margin: 0;
+    color: #8d86a8; font-size: 12px; }
+  #panel { position: fixed; left: 14px; top: 40px; display: flex; flex-direction: column;
+    gap: 6px; font-size: 12px; color: #6f688c; }
+  #panel label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  #panel input[type=range] { accent-color: #ff6b95; width: 130px; }
+  #panel input[type=checkbox] { accent-color: #ff6b95; }
+  #dot { position: fixed; width: 9px; height: 9px; border-radius: 50%; background: #ff2d6b;
+    box-shadow: 0 0 0 4px rgba(255,45,107,.18); transform: translate(-50%,-50%);
+    pointer-events: none; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;desk&quot;&gt;&lt;/div&gt;
+&lt;div id=&quot;stage&quot;&gt;
+  &lt;canvas id=&quot;c&quot;&gt;&lt;/canvas&gt;
+  &lt;div id=&quot;hit&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;div id=&quot;dot&quot;&gt;&lt;/div&gt;
+&lt;p id=&quot;tip&quot;&gt;第 3 版 · 鼠标在框里移动，它的眼睛会跟着你。&lt;/p&gt;
+&lt;div id=&quot;panel&quot;&gt;
+  &lt;label&gt;&lt;input id=&quot;flip&quot; type=&quot;checkbox&quot;&gt; 水平镜像（facing = −1）&lt;/label&gt;
+  &lt;label&gt;&lt;input id=&quot;bug&quot; type=&quot;checkbox&quot;&gt; 复现 bug：镜像后不乘 facing&lt;/label&gt;
+  &lt;label for=&quot;open&quot;&gt;眨眼 &lt;input id=&quot;open&quot; type=&quot;range&quot; min=&quot;6&quot; max=&quot;100&quot; value=&quot;100&quot;&gt;&lt;/label&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+(function () {
+  &#x27;use strict&#x27;;
+
+  const SPRITE = { w: 811, h: 792 };
+  const W = 220;
+  const H = Math.round(W * SPRITE.h / SPRITE.w);
+  const PAD_X = Math.round(W * 0.20);
+  const PAD_T = Math.round(H * 0.32);
+  const PAD_B = Math.round(H * 0.16);
+  const CW = W + PAD_X * 2;
+  const CH = PAD_T + H + PAD_B;
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const K = W / SPRITE.w;
+
+  const EYES = {
+    l: { box: [154, 156, 362, 352] },
+    r: { box: [521, 176, 709, 360] }
+  };
+
+  const canvas = document.getElementById(&#x27;c&#x27;);
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  canvas.width = CW * DPR;
+  canvas.height = CH * DPR;
+  canvas.style.width = CW + &#x27;px&#x27;;
+  canvas.style.height = CH + &#x27;px&#x27;;
+
+  const stage = document.getElementById(&#x27;stage&#x27;);
+  const hit = document.getElementById(&#x27;hit&#x27;);
+  const dot = document.getElementById(&#x27;dot&#x27;);
+  const floorY = () =&gt; window.innerHeight * 0.78 - H;
+
+  const pet = {
+    x: window.innerWidth * 0.72 - W / 2,
+    y: floorY(),
+    squash: null,
+    facing: 1                      // ← 第 3 步新增：朝左还是朝右
+  };
+
+  function render() {
+    stage.style.transform =
+      &#x27;translate3d(&#x27; + Math.round(pet.x - PAD_X) + &#x27;px,&#x27; +
+                       Math.round(pet.y - PAD_T) + &#x27;px,0)&#x27;;
+  }
+
+  hit.style.left = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.right = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.top = (PAD_T + H * 0.18) + &#x27;px&#x27;;
+  hit.style.bottom = PAD_B + &#x27;px&#x27;;
+
+  let skin = null, eyeL = null, eyeR = null;
+  Promise.all([
+    &#x27;../assets/lele-skin.png&#x27;, &#x27;../assets/lele-eye-l.png&#x27;, &#x27;../assets/lele-eye-r.png&#x27;
+  ].map(loadImage)).then((arr) =&gt; {
+    skin = arr[0]; eyeL = arr[1]; eyeR = arr[2];
+    layout();
+    requestAnimationFrame(frame);
+  });
+  function loadImage(src) {
+    return new Promise((res, rej) =&gt; {
+      const i = new Image();
+      i.onload = () =&gt; res(i);
+      i.onerror = rej;
+      i.src = src;
+    });
+  }
+
+  hit.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+    e.preventDefault();
+    pet.squash = { t: 0, dur: 0.45, amp: 0.22 };
+  });
+  /* 开局和窗口变化时都重新贴地。
+     注意：别信「解析 HTML 那一刻」的窗口尺寸 —— 它可能还不是最终尺寸，
+     所以图片加载完要再 layout() 一次。 */
+  function layout() {
+    pet.y = floorY();
+    pet.x = Math.min(pet.x, window.innerWidth - W);
+    render();
+  }
+  addEventListener(&#x27;resize&#x27;, layout);
+
+  const blink = { t: 0, dur: 0, next: 1.5 + Math.random() * 3 };
+  const openEl = document.getElementById(&#x27;open&#x27;);
+  let manual = false;
+  openEl.addEventListener(&#x27;input&#x27;, () =&gt; { manual = true; });
+
+  function updateBlink(dt) {
+    if (manual) return +openEl.value / 100;
+    if (blink.dur &gt; 0) {
+      blink.t += dt;
+      const k = blink.t / blink.dur;
+      if (k &gt;= 1) { blink.dur = 0; blink.next = 1.6 + Math.random() * 4; return 1; }
+      return k &lt; 0.3 ? 1 - k / 0.3 : (k - 0.3) / 0.7;
+    }
+    blink.next -= dt;
+    if (blink.next &lt;= 0) { blink.dur = 0.32; blink.t = 0; }
+    return 1;
+  }
+
+  /* ─────────── 第 3 步新增：鼠标 → 视线 ───────────
+     目标值 gaze.tx / gaze.ty，当前值 gaze.x / gaze.y 用缓动追过去 */
+  const pointer = { x: 0, y: 0, seen: false };
+  const gaze = { x: 0, y: 0, tx: 0, ty: 0 };
+  const flipEl = document.getElementById(&#x27;flip&#x27;);
+  const bugEl = document.getElementById(&#x27;bug&#x27;);
+
+  addEventListener(&#x27;pointermove&#x27;, (e) =&gt; {
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    pointer.seen = true;
+    dot.style.left = e.clientX + &#x27;px&#x27;;
+    dot.style.top = e.clientY + &#x27;px&#x27;;
+  });
+
+  function updateGaze(dt) {
+    if (pointer.seen) {
+      // 两眼中间大概在「身高 1/3」的位置
+      const midX = pet.x + W / 2;
+      const midY = pet.y + H * 0.34;
+      const dx = pointer.x - midX;
+      const dy = pointer.y - midY;
+      const d = Math.hypot(dx, dy) || 1;
+
+      const reach = Math.min(1, Math.max(0.25, d / 240));   // 越远看得越用力
+      gaze.tx = (dx / d) * 15 * reach;
+      gaze.ty = (dy / d) * 10 * reach;
+    }
+    // 缓动：每帧追 10% 左右，别直接赋值（否则眼球会「咔」地跳）
+    const rate = Math.min(1, dt * 10);
+    gaze.x += (gaze.tx - gaze.x) * rate;
+    gaze.y += (gaze.ty - gaze.y) * rate;
+  }
+
+  let last = performance.now();
+  let time = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    time += dt;
+
+    if (pet.squash) {
+      pet.squash.t += dt;
+      if (pet.squash.t &gt;= pet.squash.dur) pet.squash = null;
+    }
+
+    pet.facing = flipEl.checked ? -1 : 1;
+    updateGaze(dt);
+    draw(updateBlink(dt));
+    requestAnimationFrame(frame);
+  }
+
+  function draw(open) {
+    let sy = 1 + Math.sin(time * 2.1) * 0.012;
+    let sx = 1 - Math.sin(time * 2.1) * 0.008;
+    let bob = -Math.sin(time * 2.1) * 1.4;
+
+    if (pet.squash) {
+      const k = pet.squash.t / pet.squash.dur;
+      const s = Math.sin(k * Math.PI) * (1 - k * 0.5) * pet.squash.amp * 1.25;
+      sy *= 1 - s;
+      sx *= 1 + s * 0.9;
+    }
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+    shadow();
+
+    ctx.save();
+    ctx.translate(PAD_X + W / 2, PAD_T + H);
+    ctx.scale(sx * pet.facing, sy);        // ← 镜像在这里发生
+    ctx.translate(-W / 2, -H + bob);
+
+    ctx.drawImage(skin, 0, 0, W, H);
+    drawEye(eyeL, EYES.l.box, open);
+    drawEye(eyeR, EYES.r.box, open);
+
+    ctx.restore();
+  }
+
+  function drawEye(img, box, open) {
+    const bx = box[0] * K;
+    const by = box[1] * K;
+    const bw = (box[2] - box[0]) * K;
+    const bh = (box[3] - box[1]) * K;
+
+    const dh = bh * Math.max(0.06, Math.min(1, open));
+
+    /* ─────────── 第 3 步新增：横向偏移要乘 facing ───────────
+       身体镜像后，本地坐标的 +x 在屏幕上其实是往左。
+       不乘 facing 的话，猫一朝左，眼球就跟着反了。 */
+    const gx = bugEl.checked ? gaze.x : gaze.x * pet.facing;
+
+    ctx.drawImage(img, bx + gx * K, by + gaze.y * K + (bh - dh) / 2, bw, dh);
+  }
+
+  function shadow() {
+    const ox = PAD_X + W / 2;
+    const oy = PAD_T + H + PAD_B * 0.34;
+    const rx = W * 0.42;
+    const ry = Math.max(3, PAD_B * 0.18);
+    const g = ctx.createRadialGradient(ox, oy, 1, ox, oy, rx);
+    g.addColorStop(0, &#x27;rgba(70,60,95,.30)&#x27;);
+    g.addColorStop(1, &#x27;rgba(70,60,95,0)&#x27;);
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+
+        <div class="learn">
+          <span class="ic">⌨️</span>
+          <div><code>addEventListener('pointermove', …)</code> 和 <code>e.clientX</code> 怎么用？ <a href="basics-js.html">附录 B · 事件 →</a></div>
+        </div>
+
+        <h2>新增：一个方向 + 一次缓动</h2>
+        <p>搜 <code>updateGaze</code>。核心就三行：算出鼠标相对「两眼中间」的单位方向，乘上最大偏移量：</p>
+        <div class="codeblock"><pre data-label="index.html" class="lang-js">const reach = Math.min(1, Math.max(0.25, d / 240));   // 越远「看得越用力」
+gaze.tx = (dx / d) * 15 * reach;                      // 水平最多 15 个精灵像素
+gaze.ty = (dy / d) * 10 * reach;                      // 垂直少一点，更自然</pre></div>
+        <p>
+          然后<b>不要直接赋值</b>，用缓动追过去：
+          <code>gaze.x += (gaze.tx - gaze.x) * Math.min(1, dt * 10)</code>。
+          直接赋值的话鼠标一动眼球就「咔」地跳一下，很出戏。
+        </p>
+
+        <h2>新增：镜像的坑（重点看这里）</h2>
+        <p>
+          这一版加了 <code>pet.facing</code>：朝左时用 <code>ctx.scale(-1, 1)</code> 把整只猫翻个面。
+          问题来了 —— <b>镜像之后，本地坐标的 <code>+x</code> 在屏幕上其实是往左</b>。
+        </p>
+        <div class="codeblock"><pre data-label="index.html" class="lang-js">const gx = bugEl.checked ? gaze.x : gaze.x * pet.facing;
+ctx.drawImage(img, bx + gx * K, by + gaze.y * K + (bh - dh) / 2, bw, dh);</pre></div>
+        <div class="callout danger">
+          <div class="ic">⛔</div>
+          <div class="bd">
+            <span class="t">这个 bug 为什么难发现</span>
+            它<b>只在猫朝左时</b>才反。而「朝向」通常还会被存进 localStorage，
+            于是它往左走过一次之后，你下次打开页面看到的就一直是反的。
+            勾上演示里的两个开关，自己看一眼就懂了。
+          </div>
+        </div>
+
+        <h3>别靠肉眼判断，量像素</h3>
+        <p>截图，算瞳孔（暗像素）相对眼框中心的偏移，鼠标在右时这个值必须为正：</p>
+        <div class="codeblock"><pre data-label="python" class="lang-python">win = gray[ey-45:ey+45, ex-45:ex+45]     # 以眼睛中心开窗口
+ys, xs = np.nonzero(win &lt; 95)            # 暗像素 = 瞳孔
+print('瞳孔 dx =', xs.mean() - 45)</pre></div>
+
+        <h2>验证</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="g1"><label for="g1">鼠标在上下左右四个方向，眼睛都跟对</label></li>
+          <li><input type="checkbox" id="g2"><label for="g2">勾上「水平镜像」后，视线依然对（勾「复现 bug」才会反）</label></li>
+          <li><input type="checkbox" id="g3"><label for="g3">移动鼠标时眼睛是滑过去的，不是瞬移</label></li>
+          <li><input type="checkbox" id="g4"><label for="g4">鼠标离得远时，眼球偏移更明显</label></li>
+        </ul>
+        <p class="done-count"></p>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2. 拆眼睛：眨眼的前提 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 2 步 · 拆眼睛：眨眼的前提</h1>
+        <p class="lede">
+          这一步做完，一张静态图就有了「能单独动」的部件。
+          <b>整个项目最关键的一招，就这一页。</b>
+        </p>
+
+        <h2>先看懂三层素材</h2>
+        <p>
+          勾选/取消下面的框，你会看到：所谓「眨眼」，就是把眼睛贴片<b>纵向压扁</b>，
+          空出来的地方由底层的「皮」补上。
+        </p>
+
+        <div class="layers-wrap">
+          <div class="layers">
+            <div class="checker"></div>
+            <img class="skin" src="../assets/lele-skin.png" alt="底层的皮">
+            <img class="eye l-eye" src="../assets/lele-eye-l.png" alt="左眼贴片">
+            <img class="eye r-eye" src="../assets/lele-eye-r.png" alt="右眼贴片">
+          </div>
+        </div>
+        <div class="toggles">
+          <label><input type="checkbox" id="tSkin" checked> 皮（眼睛已抹平）</label>
+          <label><input type="checkbox" id="tEyeL" checked> 左眼贴片</label>
+          <label><input type="checkbox" id="tEyeR" checked> 右眼贴片</label>
+        </div>
+        <p class="muted small" style="text-align:center">
+          取消「皮」只剩两只眼睛；取消两只眼睛，就是一张没有眼睛的猫 —— 那就是眨眼时露出的底图。
+        </p>
+
+        <h2>为什么这样就能眨眼</h2>
+        <ol>
+          <li><b>皮</b>：把眼睛那块用周围的毛「抹平」（不是涂白，是扩散补洞，见下）。</li>
+          <li><b>眼睛贴片</b>：把眼睛连同外面一圈毛剪下来，边缘做羽化透明。</li>
+          <li>渲染时先画皮，再把贴片盖上去。贴片高度乘以 <code>open</code>，就是睁眼程度。</li>
+        </ol>
+        <p>
+          抹平用 <b>Jacobi 扩散</b>：只用洞外的像素，反复取四邻域平均，直到收敛。
+          边界颜色会自然往里延伸，所以补出来的是一块「像毛」的平面，不是一块色块。
+        </p>
+
+        <h2>量眼睛坐标</h2>
+        <p>打开第 1 步用 <code>--grid</code> 出的网格图，读出<b>眼球中心</b>和<b>半径</b>：</p>
+<div class="codeblock"><pre data-label="乐乐这张图量出来">左眼  cx=424  cy=581  rx=74  ry=68
+右眼  cx=781  cy=595  rx=64  ry=62</pre></div>
+        <p class="muted small">
+          这四个数就是眼睛外接椭圆的中心与半径。<b>量歪 5 像素</b>，贴片就会盖偏，
+          眨眼时脸上会露出一道边 —— 所以宁可多量两遍。
+        </p>
+
+        <h2>跑起来</h2>
+<div class="codeblock"><pre data-label="终端" class="lang-bash">python3 tools/split-sprite.py --src assets/lele-original.jpg --out /tmp/pet \
+    --seed 540,700 \
+    --eye-l 424,581,74,68 \
+    --eye-r 781,595,64,62 \
+    --preview</pre></div>
+
+        <p>产出四个文件，外加一份几何数据：</p>
+        <div class="tw">
+          <table>
+            <tr><th>文件</th><th>是什么</th></tr>
+            <tr><td><code>pet.png</code></td><td>抠好的整猫（备用 / 图标 / 兜底）</td></tr>
+            <tr><td><code>pet-skin.png</code></td><td>眼睛被抹平的「皮」</td></tr>
+            <tr><td><code>pet-eye-l.png</code></td><td>左眼贴片</td></tr>
+            <tr><td><code>pet-eye-r.png</code></td><td>右眼贴片</td></tr>
+            <tr><td><code>pet.json</code></td><td>尺寸 + 眼睛几何，<b>要抄进 JS</b></td></tr>
+          </table>
+        </div>
+
+        <h2>验收：看那两格</h2>
+        <p>
+          <code>--preview</code> 的对照图有四格：抠图 / 皮+眼睛 / 眼睛压到 35% / 压到 10%。
+          后两格就是眨眼过程中的样子。
+        </p>
+        <div class="callout good">
+          <div class="ic">✅</div>
+          <div class="bd">
+            <span class="t">合格</span>
+            看起来像「眼皮慢慢合上」，缝里由毛补上，没有色块、没有黑边、没有明显的方块。
+          </div>
+        </div>
+        <div class="callout danger">
+          <div class="ic">⛔</div>
+          <div class="bd">
+            <span class="t">不合格就重做</span>
+            露出一圈明显深色环 → 抹平的椭圆太大/太小；贴片位置偏 → 坐标量歪了。
+            <b>别带着这个问题往下走</b>，后面所有动画都建立在这两层素材上。
+          </div>
+        </div>
+
+        <h2>把几何抄进 JS</h2>
+        <p>打开 <code>pet.json</code>，把这两个值填到代码顶部（第 3 步会用到）：</p>
+<div class="codeblock"><pre data-label="assets/lele-pet.js 顶部" class="lang-js">var SPRITE = { w: 811, h: 792 };                          // ← size
+
+var EYES = {
+  l: { box: [154, 156, 362, 352] },                        // ← eyes.l.box
+  r: { box: [521, 176, 709, 360] }                         // ← eyes.r.box
+};
+
+var CHEEKS = [{ x: 186, y: 356, r: 96 }, { x: 672, y: 372, r: 92 }];   // 腮红位置，看着调</pre></div>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">box 是裁切后的坐标</span>
+            脚本已经帮你把「原图坐标」减掉了抠图时的裁切偏移。
+            自己手算很容易错，直接用 <code>pet.json</code> 里的值。
+          </div>
+        </div>
+
+        <div class="pagefoot">
+          <p>素材齐了。下一步开始画 —— 让它呼吸、被压扁还不悬空。</p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+<script>
+/* 三层素材开关（纯 CSS 显隐，不用 canvas） */
+(function () {
+  var map = { tSkin: '.skin', tEyeL: '.l-eye', tEyeR: '.r-eye' };
+  Object.keys(map).forEach(function (id) {
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.addEventListener('change', function () {
+      document.querySelectorAll('.layers ' + map[id]).forEach(function (img) {
+        img.style.visibility = box.checked ? 'visible' : 'hidden';
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

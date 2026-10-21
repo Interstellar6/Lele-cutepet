@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 1 版 · 呼吸 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 1 版 · 呼吸</h1>
+        <p class="lede">
+          目标：把猫画到页面上，让它呼吸，点一下会挤压。
+          <b>这一版只用了 1 张图</b>，没有眼睛素材 —— 你先看到「骨架」。
+        </p>
+
+        <div class="meta">
+          <span class="tag">完整文件 · 191 行</span>
+          <span class="tag new">新增：画布留白 / 脚底锚点 / 呼吸 / 挤压</span>
+          <a class="dl" href="../build/01-呼吸.html" download>下载这一版 ↓</a>
+        </div>
+
+        <div class="learn">
+          <span class="ic">🧭</span>
+          <div>第一次写网页？先花十分钟看 <a href="basics-html.html">附录 A · HTML / CSS →</a></div>
+        </div>
+
+        <div class="learn">
+          <span class="ic">🎨</span>
+          <div>看不懂 <code>ctx.translate</code> / <code>save</code> / 留白？ <a href="basics-canvas.html">附录 C · Canvas →</a></div>
+        </div>
+
+        <div class="demo">
+          <div class="bar"><span class="dot"></span><b>这一版长这样</b> · 点它一下会挤压
+            <span class="spacer"></span>
+            <a href="../build/01-呼吸.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+          </div>
+          <iframe src="../build/01-呼吸.html" height="360" title="第 1 版演示"></iframe>
+        </div>
+
+        <h2>跑起来</h2>
+        <ol class="steps">
+          <li>
+            <h3>建文件夹</h3>
+            <p>新建 <code>my-pet/</code>，把项目 <code>assets/</code> 里的
+              <code>lele.png</code> 拷到 <code>my-pet/assets/</code>。</p>
+          </li>
+          <li>
+            <h3>建文件</h3>
+            <p>新建 <code>my-pet/index.html</code>，把下面整段粘进去。</p>
+          </li>
+          <li>
+            <h3>双击打开</h3>
+            <p>不用服务器、不用 npm。打开后应该看到猫在桌子边缘呼吸。</p>
+          </li>
+        </ol>
+
+        <h2>完整代码</h2>
+        <p class="muted small">
+          <b>以后每一版都是完整文件</b>，直接用新版覆盖旧版就行；
+          改动都标了「第 N 步新增」，想手动改也能对着看。
+        </p>
+        <pre data-src="../build/01-呼吸.html" data-label="my-pet/index.html" class="lang-html">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;乐乐桌宠 · 第 1 版：呼吸&lt;/title&gt;
+&lt;!--
+  ============================================================
+  第 1 版：让它站在页面上，会呼吸，点一下会挤压
+  ------------------------------------------------------------
+  · 只用一张图（assets/lele.png），不需要眼睛素材
+  · 直接双击本文件就能看效果，不需要服务器
+  · 这就是全部代码，没有隐藏部分
+  ============================================================
+--&gt;
+&lt;style&gt;
+  html, body { height: 100%; margin: 0; overflow: hidden;
+    font: 13px/1.6 -apple-system, &quot;PingFang SC&quot;, system-ui, sans-serif;
+    background: linear-gradient(180deg, #fbf7ff, #ece7f7); }
+  /* 桌子：桌宠就站在这条线的上沿 */
+  #desk { position: fixed; left: 0; right: 0; bottom: 0; height: 22vh;
+    background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+    border-top: 3px solid #e2cdb6; }
+  /* 舞台本身铺在左上角，靠 transform 移动 */
+  #stage { position: fixed; left: 0; top: 0; cursor: grab; touch-action: none; }
+  canvas { display: block; }
+  /* 命中区：只覆盖猫的身子，点四周空白不会触发 */
+  #hit { position: absolute; border-radius: 40%; cursor: grab; }
+  #tip { position: fixed; left: 14px; top: 12px; margin: 0;
+    color: #8d86a8; font-size: 12px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;desk&quot;&gt;&lt;/div&gt;
+&lt;div id=&quot;stage&quot;&gt;
+  &lt;canvas id=&quot;c&quot;&gt;&lt;/canvas&gt;
+  &lt;div id=&quot;hit&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;p id=&quot;tip&quot;&gt;第 1 版 · 点它一下会挤压。往右看：它只会呼吸，还不会眨眼。&lt;/p&gt;
+
+&lt;script&gt;
+(function () {
+  &#x27;use strict&#x27;;
+
+  /* ─────────── 素材尺寸 ───────────
+     SPRITE 是抠图后的真实像素，W 是我想显示多宽。
+     只要换 SPRITE，这个文件就能画任何一张图。 */
+  const SPRITE = { w: 811, h: 792 };
+  const W = 220;
+  const H = Math.round(W * SPRITE.h / SPRITE.w);
+
+  /* ─────────── 画布留白 ───────────
+     动作一大就会画出角色边界，所以画布要比角色大一圈。
+     不留的话，一挤压、一跳，边缘就被裁掉了（耳朵最先没）。 */
+  const PAD_X = Math.round(W * 0.20);   // 左右：倾斜用
+  const PAD_T = Math.round(H * 0.32);   // 上面：跳起来用
+  const PAD_B = Math.round(H * 0.16);   // 下面：影子和挤压用
+  const CW = W + PAD_X * 2;
+  const CH = PAD_T + H + PAD_B;
+
+  /* ─────────── 高分屏 ───────────
+     画布后备缓冲按物理像素，样式尺寸按逻辑像素，
+     再给 ctx 一个 setTransform，后面就能一直按逻辑像素思考。 */
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const canvas = document.getElementById(&#x27;c&#x27;);
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  canvas.width = CW * DPR;
+  canvas.height = CH * DPR;
+  canvas.style.width = CW + &#x27;px&#x27;;
+  canvas.style.height = CH + &#x27;px&#x27;;
+
+  /* ─────────── 位置 ───────────
+     pet.x / pet.y 永远指「角色本体」的左上角，
+     画布 DOM 的位置由 render() 换算（减去留白）。 */
+  const stage = document.getElementById(&#x27;stage&#x27;);
+  const hit = document.getElementById(&#x27;hit&#x27;);
+
+  // 地面 = 桌子的上沿
+  const floorY = () =&gt; window.innerHeight * 0.78 - H;
+
+  const pet = {
+    x: window.innerWidth * 0.72 - W / 2,
+    y: floorY(),
+    squash: null          // 挤压动画：{ t, dur, amp }
+  };
+
+  function render() {
+    stage.style.transform =
+      &#x27;translate3d(&#x27; + Math.round(pet.x - PAD_X) + &#x27;px,&#x27; +
+                       Math.round(pet.y - PAD_T) + &#x27;px,0)&#x27;;
+  }
+
+  // 命中区贴合猫的身子（不是整个画布）
+  hit.style.left = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.right = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.top = (PAD_T + H * 0.18) + &#x27;px&#x27;;
+  hit.style.bottom = PAD_B + &#x27;px&#x27;;
+
+  /* ─────────── 素材 ─────────── */
+  const img = new Image();
+  img.onload = () =&gt; { render(); requestAnimationFrame(frame); };
+  img.src = &#x27;../assets/lele.png&#x27;;
+
+  /* ─────────── 交互：点一下挤压 ─────────── */
+  hit.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+    e.preventDefault();
+    pet.squash = { t: 0, dur: 0.45, amp: 0.22 };
+  });
+  /* 开局和窗口变化时都重新贴地。
+     注意：别信「解析 HTML 那一刻」的窗口尺寸 —— 它可能还不是最终尺寸，
+     所以图片加载完要再 layout() 一次。 */
+  function layout() {
+    pet.y = floorY();
+    pet.x = Math.min(pet.x, window.innerWidth - W);
+    render();
+  }
+  addEventListener(&#x27;resize&#x27;, layout);
+
+  /* ─────────── 每帧 ─────────── */
+  let last = performance.now();
+  let time = 0;
+
+  function frame(now) {
+    // dt 封顶：切走标签页再回来时，别让时间跳一大步
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    time += dt;
+
+    if (pet.squash) {
+      pet.squash.t += dt;
+      if (pet.squash.t &gt;= pet.squash.dur) pet.squash = null;
+    }
+
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function draw() {
+    /* 呼吸：慢速正弦。纵向涨、横向缩一点，像被压扁的果冻 */
+    let sy = 1 + Math.sin(time * 2.1) * 0.012;
+    let sx = 1 - Math.sin(time * 2.1) * 0.008;
+    let bob = -Math.sin(time * 2.1) * 1.4;
+
+    /* 挤压：先压扁再弹回来，(1 - k*0.5) 让回弹慢慢衰减 */
+    if (pet.squash) {
+      const k = pet.squash.t / pet.squash.dur;
+      const s = Math.sin(k * Math.PI) * (1 - k * 0.5) * pet.squash.amp * 1.25;
+      sy *= 1 - s;
+      sx *= 1 + s * 0.9;
+    }
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+
+    /* 影子：贴地时才明显（这一版它不动，但先铺好路） */
+    shadow();
+
+    /* ─────────── 关键：锚点在脚底中心 ───────────
+       ① 原点挪到脚底中心
+       ② 缩放（所以压扁时脚不离地）
+       ③ 把角色左上角摆回原点，再画 */
+    ctx.save();
+    ctx.translate(PAD_X + W / 2, PAD_T + H);
+    ctx.scale(sx, sy);
+    ctx.translate(-W / 2, -H + bob);
+    ctx.drawImage(img, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  function shadow() {
+    const ox = PAD_X + W / 2;
+    const oy = PAD_T + H + PAD_B * 0.34;
+    const rx = W * 0.42;
+    const ry = Math.max(3, PAD_B * 0.18);
+    const g = ctx.createRadialGradient(ox, oy, 1, ox, oy, rx);
+    g.addColorStop(0, &#x27;rgba(70,60,95,.30)&#x27;);
+    g.addColorStop(1, &#x27;rgba(70,60,95,0)&#x27;);
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+
+        <h2>四个关键点</h2>
+
+        <h3>1. 画布要比角色大一圈</h3>
+        <p>
+          看代码里的 <code>PAD_X / PAD_T / PAD_B</code>。不留白的话，
+          一挤压、一跳，超出画布的部分直接被裁掉（耳朵最先没）。
+        </p>
+
+        <h3>2. 锚点在脚底中心</h3>
+        <p>这是「像不像有重量」的分水岭：</p>
+<div class="codeblock"><pre data-label="index.html" class="lang-js">ctx.translate(PAD_X + W / 2, PAD_T + H);   // 原点挪到脚底中心
+ctx.scale(sx, sy);                        // 缩放绕这里发生，所以脚不离地
+ctx.translate(-W / 2, -H + bob);          // 把角色左上角摆回原点</pre></div>
+        <p class="muted small">锚点放正中间的话，一压就整个悬空，像漏气的气球。</p>
+
+        <h3>3. dt 要封顶</h3>
+        <p>
+          <code>Math.min(0.05, ...)</code>。切到别的标签页再回来，两帧之间可能隔好几秒，
+          不封顶宠物会瞬移到屏幕外。
+        </p>
+
+        <h3>4. 呼吸就是一条正弦</h3>
+        <p>
+          纵向 <code>1 ± 0.012</code>、横向反向一点点，两个频率一样、相位一致，
+          看起来就是「有东西在轻轻呼吸」。
+        </p>
+
+        <h2>验证</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="v1"><label for="v1">猫站在桌子边缘，不是浮在空中</label></li>
+          <li><input type="checkbox" id="v2"><label for="v2">有很轻的呼吸起伏（幅度小就对了）</label></li>
+          <li><input type="checkbox" id="v3"><label for="v3">点它一下会压扁再弹回，脚底不动</label></li>
+          <li><input type="checkbox" id="v4"><label for="v4">把窗口拉窄，猫没被裁掉</label></li>
+        </ul>
+        <p class="done-count"></p>
+
+        <div class="callout warn">
+          <div class="ic">⚠️</div>
+          <div class="bd">
+            <span class="t">这一版还是个瞎子</span>
+            它只有一张图，所以眼睛不会眨也不会看人。
+            下一步把眼睛从图里拆出来，才是真正的分水岭。
+          </div>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

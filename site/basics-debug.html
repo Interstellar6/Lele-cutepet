@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D · 调试：报错怎么读 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>附录 D · 调试</h1>
+        <p class="lede">
+          写网页最花时间的不是「写」，是「为什么没反应」。
+          这一页把新手最常遇到的几种情况列出来，对照着查就行。
+        </p>
+
+        <h2>先学会开控制台</h2>
+        <div class="tw">
+          <table>
+            <tr><th>系统</th><th>快捷键</th></tr>
+            <tr><td>Mac</td><td><code>Cmd + Option + I</code> → 选 Console</td></tr>
+            <tr><td>Windows / Linux</td><td><code>F12</code> 或 <code>Ctrl + Shift + I</code> → Console</td></tr>
+            <tr><td>任何系统</td><td>右键页面 → 「检查」</td></tr>
+          </table>
+        </div>
+        <p>
+          <b>Console 里出现红色，就是你唯一需要看的东西。</b>
+          白屏、猫不动、点了没反应 —— 95% 的情况下红字直接告诉你哪一行错了。
+        </p>
+
+        <h2>四种最常见的红字</h2>
+
+        <h3>1. <code>Cannot read properties of null (reading 'getContext')</code></h3>
+        <p>
+          意思是「我按 id 找那个元素，没找到，拿到个 null，然后你就让我在 null 上取画笔」。
+        </p>
+        <div class="tw">
+          <table>
+            <tr><th>原因</th><th>怎么查</th></tr>
+            <tr><td><code>getElementById('c')</code> 里的 id 和 HTML 里对不上</td><td>两边逐字符比一遍，大小写也算</td></tr>
+            <tr><td>脚本跑在元素创建之前</td><td>把 <code>&lt;script&gt;</code> 移到 <code>&lt;/body&gt;</code> 前面</td></tr>
+          </table>
+        </div>
+
+        <h3>2. <code>xxx is not a function</code></h3>
+        <p>拼错了，或者用错了对象。比如把 <code>ctx.drawImage</code> 写成 <code>ctx.drawimage</code>。</p>
+
+        <h3>3. <code>Failed to load resource: 404</code></h3>
+        <p>
+          图片或文件路径不对。检查相对路径 —— <code>../assets/lele-skin.png</code> 里的
+          <code>../</code> 表示「上一级目录」。<br>
+          <b>本项目的相对路径是按 <code>build/</code> 目录算的</b>：
+          文件在 <code>build/01-呼吸.html</code>，素材在 <code>assets/</code>，所以是 <code>../assets/</code>。
+          你把文件挪到别处，这段就要改。
+        </p>
+
+        <h3>4. 不报错，但东西不动 / 不见了</h3>
+        <p>没有红字反而更难查。按这个顺序怀疑：</p>
+        <ul class="checklist">
+          <li><input type="checkbox" id="d1"><label for="d1">值是 <code>NaN</code>（数字算错了，整条变换链会作废，宠物直接消失）</label></li>
+          <li><input type="checkbox" id="d2"><label for="d2">某处忘了 <code>ctx.restore()</code>，后面的绘制全都歪了</label></li>
+          <li><input type="checkbox" id="d3"><label for="d3">没擦画布（<code>clearRect</code>），越画越糊</label></li>
+          <li><input type="checkbox" id="d4"><label for="d4">图片还没加载完就 <code>drawImage</code>（要放进 <code>.then</code>）</label></li>
+          <li><input type="checkbox" id="d5"><label for="d5">画到画布外面去了（忘了留白 / 坐标算错）</label></li>
+          <li><input type="checkbox" id="d6"><label for="d6">被别的元素盖住了（查 <code>z-index</code>）</label></li>
+        </ul>
+        <p class="done-count"></p>
+
+        <h2>console.log：最简单也最好用的调试</h2>
+        <p>怀疑某个值不对，就把它打出来：</p>
+<div class="codeblock"><pre data-label="js" class="lang-js">console.log('pet.y =', pet.y, ' floor =', floorY());
+
+// 在动画里则会刷屏，所以只在值变化时打：
+if (Math.random() &lt; 0.01) console.log(pet.state, pet.x, pet.y);</pre></div>
+        <p>
+          打完记得删掉（或者用 <code>console.table</code> 看得更清楚）。
+          想看对象整体，直接 <code>console.log(pet)</code>，控制台能展开。
+        </p>
+
+        <h2>Elements 面板：直接改，马上看</h2>
+        <p>
+          打开开发者工具 → Elements，选中一个元素，右边就能改 CSS。
+          <b>改完立刻生效，刷新就还原</b> —— 调样式最快的办法，比改文件 → 刷新快十倍。
+        </p>
+        <p>本项目调参时特别有用，比如：</p>
+        <ul>
+          <li>改 <code>#desk</code> 的 <code>height</code>，看桌子高度怎么影响站位；</li>
+          <li>给 <code>#stage</code> 加 <code>outline: 2px solid red</code>，看清画布的边界（连留白一起）；</li>
+          <li>给 <code>#hit</code> 加背景色，看清命中区到底覆盖了哪里。</li>
+        </ul>
+
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">本项目故意留了两个「探针」</span>
+            打开成品页或教程站，在 Console 里输入：
+            <code>lele.poke()</code>（成品页）、<code>tutPet.poke()</code>（教程站），
+            就能不点鼠标直接逗它。想试某个 API，不用改代码。
+          </div>
+        </div>
+
+        <h2>调参的工作方式</h2>
+        <p>做完前面五版你会发现，剩下全是「改一个数，看一次效果」。这个循环是：</p>
+        <div class="flow">
+          <div class="st">改一个常量<small>比如 G = 2600</small></div>
+          <div class="ar">→</div>
+          <div class="st">保存 + 刷新<small>或直接改 DevTools</small></div>
+          <div class="ar">→</div>
+          <div class="st">看手感对不对<small>大了还是小了</small></div>
+          <div class="ar">→</div>
+          <div class="st">再改一次</div>
+        </div>
+        <p class="muted small">
+          所以我在代码里把能调的数值都提到了顶部当常量：
+          <code>G</code>、<code>BOUNCE</code>、<code>PAD_*</code>、<code>W</code>。
+          调参时只碰这几个地方，不要到处乱改。
+        </p>
+
+        <h2>术语小抄</h2>
+        <dl>
+          <dt>元素 / element</dt>
+          <dd>页面上的一个盒子，比如 <code>&lt;div&gt;</code>、<code>&lt;canvas&gt;</code>。</dd>
+
+          <dt>选择器 / selector</dt>
+          <dd>「选中谁」的写法：<code>#c</code> 是 id，<code>.note</code> 是 class，<code>div</code> 是标签名。</dd>
+
+          <dt>坐标系 / transform</dt>
+          <dd>canvas 里所有绘制都发生在一个「会变形的坐标系」里；<code>translate/rotate/scale</code> 就是在改它。</dd>
+
+          <dt>锚点 / anchor / origin</dt>
+          <dd>缩放和旋转围绕的那个点。本项目是「脚底中心」。</dd>
+
+          <dt>精灵 / sprite</dt>
+          <dd>那张抠好的角色图（本项目 811×792）。</dd>
+
+          <dt>留白 / padding（这里的 PAD_）</dt>
+          <dd>画布比角色多出来的那一圈，避免动作被裁掉。</dd>
+
+          <dt>帧 / frame、帧率 / fps</dt>
+          <dd>每秒画多少次。浏览器一般 60 次；每帧的时间就是 <code>dt</code>。</dd>
+
+          <dt>DPR / devicePixelRatio</dt>
+          <dd>一个 CSS 像素对应几个物理像素。Mac 高分屏是 2。</dd>
+
+          <dt>Promise / 异步</dt>
+          <dd>「这件事要等一会儿」。图片加载就是异步的，所以要用 <code>.then</code> 等它。</dd>
+
+          <dt>闭包 / IIFE</dt>
+          <dd>把代码包进 <code>(function(){ … })()</code>，里面的变量外面看不到，避免撞名。</dd>
+
+          <dt>合成模式 / composite</dt>
+          <dd><code>source-atop</code> 这种，决定「新画的像素和已有的像素怎么叠加」。</dd>
+        </dl>
+
+        <h2>还是一动不动？</h2>
+        <div class="callout warn">
+          <div class="ic">🔍</div>
+          <div class="bd">
+            <span class="t">三步定位法</span>
+            ① Console 有没有红字 → 有就照着改；<br>
+            ② Elements 里选中 <code>#stage</code>，看它的 <code>transform</code> 有没有在变 → 不变说明动画循环没跑起来；<br>
+            ③ 在循环第一行加 <code>console.log(1)</code> → 不打印说明 <code>requestAnimationFrame</code> 没启动（多半是图片没加载成功，<code>.then</code> 没进）。
+          </div>
+        </div>
+
+        <div class="pagefoot">
+          <p>回到 <a href="index.html">教程首页</a>，或者直接开始 <a href="step-3-draw.html">第 1 版</a>。</p>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

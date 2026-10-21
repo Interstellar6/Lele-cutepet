@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 2 版 · 眨眼 · 手搓桌宠</title>
+<link rel="stylesheet" href="assets/docs.css">
+<link rel="icon" href="../assets/lele.png">
+</head>
+<body data-pet="170">
+<a class="skip" href="#main">跳到正文</a>
+<div id="shell">
+  <aside id="sidebar"></aside>
+  <div>
+    <header id="topbar"></header>
+    <main id="main">
+      <article>
+
+        <h1>第 2 版 · 眨眼</h1>
+        <p class="lede">
+          目标：它会自己眨眼了。做法不是播放动画，而是
+          <b>把眼睛那一层贴片纵向压扁</b>，露出来的地方由底层的「皮」补上。
+        </p>
+
+        <div class="meta">
+          <span class="tag">完整文件 · 234 行</span>
+          <span class="tag new">新增：三张素材 / 眼睛几何 / 眨眼状态 / drawEye</span>
+          <a class="dl" href="../build/02-眨眼.html" download>下载这一版 ↓</a>
+        </div>
+
+        <div class="demo">
+          <div class="bar"><span class="dot"></span><b>这一版长这样</b> · 拖左上角滑块可以手动眨眼
+            <span class="spacer"></span>
+            <a href="../build/02-眨眼.html" target="_blank" rel="noopener">新窗口打开 ↗</a>
+          </div>
+          <iframe src="../build/02-眨眼.html" height="360" title="第 2 版演示"></iframe>
+        </div>
+
+        <h2>先换素材</h2>
+        <p>
+          这一版不再用 <code>lele.png</code>，改成三张：
+          <code>lele-skin.png</code>（皮）、<code>lele-eye-l.png</code>、<code>lele-eye-r.png</code>。
+          把这三个文件也从 <code>assets/</code> 拷进 <code>my-pet/assets/</code>。
+        </p>
+        <div class="callout tip">
+          <div class="ic">💡</div>
+          <div class="bd">
+            <span class="t">还没做这三张？</span>
+            回到 <a href="step-2-eye.html">第 2 步 · 拆眼睛</a>，
+            一条命令就能生成。没有它们这一版跑不起来（会白屏）。
+          </div>
+        </div>
+
+        <h2>完整代码</h2>
+        <p class="muted small">整段替换掉上一版的 <code>index.html</code>。</p>
+        <pre data-src="../build/02-眨眼.html" data-label="my-pet/index.html" class="lang-html">&lt;!DOCTYPE html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;title&gt;乐乐桌宠 · 第 2 版：眨眼&lt;/title&gt;
+&lt;!--
+  ============================================================
+  第 2 版：在第 1 版基础上，加上眼睛
+  ------------------------------------------------------------
+  新增：
+    · 素材从一张 lele.png 换成三张：皮 + 左眼 + 右眼
+    · 眼睛会自动眨，也能用滑块手动控制
+    · 眼睛画在「身体坐标系」里，所以会跟着挤压一起动
+  ============================================================
+--&gt;
+&lt;style&gt;
+  html, body { height: 100%; margin: 0; overflow: hidden;
+    font: 13px/1.6 -apple-system, &quot;PingFang SC&quot;, system-ui, sans-serif;
+    background: linear-gradient(180deg, #fbf7ff, #ece7f7); }
+  #desk { position: fixed; left: 0; right: 0; bottom: 0; height: 22vh;
+    background: linear-gradient(180deg, #f7ecdf, #efdfcd);
+    border-top: 3px solid #e2cdb6; }
+  #stage { position: fixed; left: 0; top: 0; cursor: grab; touch-action: none; }
+  canvas { display: block; }
+  #hit { position: absolute; border-radius: 40%; cursor: grab; }
+  #tip { position: fixed; left: 14px; top: 12px; margin: 0;
+    color: #8d86a8; font-size: 12px; }
+  /* 第 2 步新增：手动眨眼滑块（只为演示，删掉也不影响） */
+  #panel { position: fixed; left: 14px; top: 40px; display: flex; align-items: center;
+    gap: 8px; font-size: 12px; color: #6f688c; }
+  #panel input { accent-color: #ff6b95; width: 130px; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;desk&quot;&gt;&lt;/div&gt;
+&lt;div id=&quot;stage&quot;&gt;
+  &lt;canvas id=&quot;c&quot;&gt;&lt;/canvas&gt;
+  &lt;div id=&quot;hit&quot;&gt;&lt;/div&gt;
+&lt;/div&gt;
+&lt;p id=&quot;tip&quot;&gt;第 2 版 · 它会自己眨眼了。拖下面的滑块可以手动眨眼。&lt;/p&gt;
+&lt;div id=&quot;panel&quot;&gt;&lt;label for=&quot;open&quot;&gt;眨眼&lt;/label&gt;&lt;input id=&quot;open&quot; type=&quot;range&quot; min=&quot;6&quot; max=&quot;100&quot; value=&quot;100&quot;&gt;&lt;/div&gt;
+
+&lt;script&gt;
+(function () {
+  &#x27;use strict&#x27;;
+
+  /* ─────────── 素材尺寸与留白（和第 1 版一样） ─────────── */
+  const SPRITE = { w: 811, h: 792 };
+  const W = 220;
+  const H = Math.round(W * SPRITE.h / SPRITE.w);
+  const PAD_X = Math.round(W * 0.20);
+  const PAD_T = Math.round(H * 0.32);
+  const PAD_B = Math.round(H * 0.16);
+  const CW = W + PAD_X * 2;
+  const CH = PAD_T + H + PAD_B;
+  const DPR = Math.min(2, window.devicePixelRatio || 1);
+  const K = W / SPRITE.w;          // 精灵坐标 → 屏幕坐标
+
+  /* ─────────── 第 2 步新增：眼睛几何 ───────────
+     来自 tools/split-sprite.py 生成的 pet.json
+     box = [x0, y0, x1, y1]，是眼睛贴片在精灵里的位置 */
+  const EYES = {
+    l: { box: [154, 156, 362, 352] },
+    r: { box: [521, 176, 709, 360] }
+  };
+
+  const canvas = document.getElementById(&#x27;c&#x27;);
+  const ctx = canvas.getContext(&#x27;2d&#x27;);
+  canvas.width = CW * DPR;
+  canvas.height = CH * DPR;
+  canvas.style.width = CW + &#x27;px&#x27;;
+  canvas.style.height = CH + &#x27;px&#x27;;
+
+  const stage = document.getElementById(&#x27;stage&#x27;);
+  const hit = document.getElementById(&#x27;hit&#x27;);
+  const floorY = () =&gt; window.innerHeight * 0.78 - H;
+
+  const pet = {
+    x: window.innerWidth * 0.72 - W / 2,
+    y: floorY(),
+    squash: null
+  };
+
+  function render() {
+    stage.style.transform =
+      &#x27;translate3d(&#x27; + Math.round(pet.x - PAD_X) + &#x27;px,&#x27; +
+                       Math.round(pet.y - PAD_T) + &#x27;px,0)&#x27;;
+  }
+
+  hit.style.left = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.right = (PAD_X + W * 0.12) + &#x27;px&#x27;;
+  hit.style.top = (PAD_T + H * 0.18) + &#x27;px&#x27;;
+  hit.style.bottom = PAD_B + &#x27;px&#x27;;
+
+  /* ─────────── 第 2 步新增：素材换成三张 ─────────── */
+  let skin = null, eyeL = null, eyeR = null;
+  const imgs = [&#x27;../assets/lele-skin.png&#x27;, &#x27;../assets/lele-eye-l.png&#x27;, &#x27;../assets/lele-eye-r.png&#x27;];
+  Promise.all(imgs.map(loadImage)).then((arr) =&gt; {
+    skin = arr[0]; eyeL = arr[1]; eyeR = arr[2];
+    layout();
+    requestAnimationFrame(frame);
+  });
+  function loadImage(src) {
+    return new Promise((res, rej) =&gt; {
+      const i = new Image();
+      i.onload = () =&gt; res(i);
+      i.onerror = rej;
+      i.src = src;
+    });
+  }
+
+  hit.addEventListener(&#x27;pointerdown&#x27;, (e) =&gt; {
+    e.preventDefault();
+    pet.squash = { t: 0, dur: 0.45, amp: 0.22 };
+  });
+  /* 开局和窗口变化时都重新贴地。
+     注意：别信「解析 HTML 那一刻」的窗口尺寸 —— 它可能还不是最终尺寸，
+     所以图片加载完要再 layout() 一次。 */
+  function layout() {
+    pet.y = floorY();
+    pet.x = Math.min(pet.x, window.innerWidth - W);
+    render();
+  }
+  addEventListener(&#x27;resize&#x27;, layout);
+
+  /* ─────────── 第 2 步新增：眨眼状态 ───────────
+     自动眨眼：闭得快、睁得慢，间隔随机（固定间隔一眼就能看出是机器） */
+  const blink = { t: 0, dur: 0, next: 1.5 + Math.random() * 3 };
+  const openEl = document.getElementById(&#x27;open&#x27;);
+  let manual = false;
+  openEl.addEventListener(&#x27;input&#x27;, () =&gt; { manual = true; });
+
+  function updateBlink(dt) {
+    if (manual) return +openEl.value / 100;
+
+    if (blink.dur &gt; 0) {
+      blink.t += dt;
+      const k = blink.t / blink.dur;
+      if (k &gt;= 1) {
+        blink.dur = 0;
+        blink.next = 1.6 + Math.random() * 4;
+        return 1;
+      }
+      // 前 30% 时间闭眼，后 70% 睁眼
+      return k &lt; 0.3 ? 1 - k / 0.3 : (k - 0.3) / 0.7;
+    }
+
+    blink.next -= dt;
+    if (blink.next &lt;= 0) { blink.dur = 0.32; blink.t = 0; }
+    return 1;
+  }
+
+  let last = performance.now();
+  let time = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    time += dt;
+
+    if (pet.squash) {
+      pet.squash.t += dt;
+      if (pet.squash.t &gt;= pet.squash.dur) pet.squash = null;
+    }
+
+    draw(updateBlink(dt));
+    requestAnimationFrame(frame);
+  }
+
+  function draw(open) {
+    let sy = 1 + Math.sin(time * 2.1) * 0.012;
+    let sx = 1 - Math.sin(time * 2.1) * 0.008;
+    let bob = -Math.sin(time * 2.1) * 1.4;
+
+    if (pet.squash) {
+      const k = pet.squash.t / pet.squash.dur;
+      const s = Math.sin(k * Math.PI) * (1 - k * 0.5) * pet.squash.amp * 1.25;
+      sy *= 1 - s;
+      sx *= 1 + s * 0.9;
+    }
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+    shadow();
+
+    /* 身体坐标系：锚点在脚底中心 */
+    ctx.save();
+    ctx.translate(PAD_X + W / 2, PAD_T + H);
+    ctx.scale(sx, sy);
+    ctx.translate(-W / 2, -H + bob);
+
+    ctx.drawImage(skin, 0, 0, W, H);          // ① 先画「皮」（没有眼睛的毛）
+    drawEye(eyeL, EYES.l.box, open);          // ② 再把两只眼睛盖上去
+    drawEye(eyeR, EYES.r.box, open);
+
+    ctx.restore();
+  }
+
+  /* ─────────── 第 2 步新增：画一只眼睛 ───────────
+     关键：高度变了，纵坐标要补 (bh - dh) / 2，
+     否则压扁是「从下往上收」，看起来像掉下来，不像闭眼。 */
+  function drawEye(img, box, open) {
+    const bx = box[0] * K;
+    const by = box[1] * K;
+    const bw = (box[2] - box[0]) * K;
+    const bh = (box[3] - box[1]) * K;
+
+    const dh = bh * Math.max(0.06, Math.min(1, open));
+    ctx.drawImage(img, bx, by + (bh - dh) / 2, bw, dh);
+  }
+
+  function shadow() {
+    const ox = PAD_X + W / 2;
+    const oy = PAD_T + H + PAD_B * 0.34;
+    const rx = W * 0.42;
+    const ry = Math.max(3, PAD_B * 0.18);
+    const g = ctx.createRadialGradient(ox, oy, 1, ox, oy, rx);
+    g.addColorStop(0, &#x27;rgba(70,60,95,.30)&#x27;);
+    g.addColorStop(1, &#x27;rgba(70,60,95,0)&#x27;);
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-ox, -oy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(ox, oy, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+})();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+
+        <h2>新增的三个东西</h2>
+
+        <h3>1. 眼睛几何</h3>
+        <p>
+          代码顶部多了 <code>EYES</code>，就是两只眼睛贴片在精灵里的位置和大小（<code>[x0,y0,x1,y1]</code>）。
+          这些数字来自 <code>pet.json</code>，别手算。
+        </p>
+
+        <h3>2. 眨眼状态机</h3>
+        <p>
+          搜 <code>updateBlink</code>：一个 <code>{t, dur, next}</code> 就够了。
+          闭眼占前 30% 时间，睁眼占后 70% —— <b>闭得快、睁得慢</b>，间隔再随机（1.6~4 秒），
+          不然一眼就能看出是机器。
+        </p>
+
+        <div class="learn">
+          <span class="ic">🎨</span>
+          <div><code>drawImage(img, x, y, w, h)</code> 的五个参数分别是什么？ <a href="basics-canvas.html">附录 C · drawImage →</a></div>
+        </div>
+
+        <h3>3. drawEye：一行就是全部魔法</h3>
+        <div class="codeblock"><pre data-label="index.html" class="lang-js">const dh = bh * open;                                   // 高度按「张眼程度」缩放
+ctx.drawImage(img, bx, by + (bh - dh) / 2, bw, dh);      // 纵坐标补一半，才是绕中心压扁</pre></div>
+        <div class="tw">
+          <table>
+            <tr><th>写法</th><th>后果</th></tr>
+            <tr><td><code>by</code> 不补 <code>(bh-dh)/2</code></td><td>从下往上收，像眼睛掉下去，不像闭眼</td></tr>
+            <tr><td><code>open</code> 到 0</td><td>太干净反而假。留 0.06 一条缝，配合皮上残留的眼窝阴影正好</td></tr>
+            <tr><td><code>open</code> 超过 1（放大）</td><td>贴片四周是羽化的毛边，一放大就露出矩形，脸上出现淡方块</td></tr>
+          </table>
+        </div>
+
+        <h2>验证</h2>
+        <ul class="checklist">
+          <li><input type="checkbox" id="b1"><label for="b1">它会自己眨，间隔不规律</label></li>
+          <li><input type="checkbox" id="b2"><label for="b2">拖滑块到 10% 时，看起来像「眼皮合上」而不是色块</label></li>
+          <li><input type="checkbox" id="b3"><label for="b3">挤压时眼睛跟着一起变形（因为画在同一个坐标系里）</label></li>
+          <li><input type="checkbox" id="b4"><label for="b4">脸上没有方块、没有黑边</label></li>
+        </ul>
+        <p class="done-count"></p>
+
+        <div class="callout good">
+          <div class="ic">✅</div>
+          <div class="bd">
+            <span class="t">到这里就跨过最难的一关了</span>
+            「把眼睛拆出来」这个思路一旦成立，后面的视线、表情、睡觉都只是在动同一层贴片。
+          </div>
+        </div>
+
+      </article>
+      <nav id="pager"></nav>
+    </main>
+  </div>
+  <aside id="toc"></aside>
+</div>
+<script src="../assets/lele-pet.js"></script>
+<script src="assets/docs.js"></script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+/* ==========================================================================
+   手搓桌宠 · 教程站样式
+   和「人工智能导论实操手册」同一套视觉语言：左侧目录 / 右侧页内目录 / 顶栏
+   离线可用 · 无外部字体 · 无 CDN
+   ========================================================================== */
+
+:root{
+  --blue:#4d6bfe; --blue-d:#2f4be0; --blue-soft:#eaefff; --blue-line:#c9d5ff;
+  --ink:#101527; --ink-2:#3c4560; --ink-3:#6b7490; --ink-4:#98a1b8;
+  --line:#e4e8f1; --line-2:#eef1f7; --bg:#fff; --bg-2:#f7f9fd; --bg-3:#f1f4fa;
+  --code-bg:#f4f6fb; --code-line:#e2e7f2;
+  --good:#0f7a50; --good-bg:#e8f7f0; --good-line:#bde5d3;
+  --warn:#96600a; --warn-bg:#fdf4e3; --warn-line:#f0ddb6;
+  --bad:#b82741; --bad-bg:#fdedf0; --bad-line:#f4c8d1;
+  --pink:#ff4d79; --pink-soft:#fff0f4;
+  --sidebar-w:272px; --toc-w:212px; --topbar-h:58px;
+  --radius:12px;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",
+         "Source Han Sans SC","Segoe UI",sans-serif;
+  --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,"Cascadia Mono","Courier New",monospace;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:calc(var(--topbar-h) + 18px)}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font); font-size:16px; line-height:1.8;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--blue-d); text-decoration:none}
+a:hover{text-decoration:underline}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:8px;top:8px;z-index:200;background:var(--blue);color:#fff;padding:8px 14px;border-radius:8px}
+
+/* ---------------- 布局 ---------------- */
+
+#shell{
+  display:grid;
+  grid-template-columns:var(--sidebar-w) minmax(0,1fr);
+  max-width:1410px; margin:0 auto;
+}
+body.has-toc #shell{grid-template-columns:var(--sidebar-w) minmax(0,1fr) var(--toc-w)}
+@media(max-width:1180px){
+  body.has-toc #shell{grid-template-columns:var(--sidebar-w) minmax(0,1fr)}
+  #toc{display:none}
+}
+@media(max-width:860px){
+  #shell, body.has-toc #shell{grid-template-columns:minmax(0,1fr)}
+  #sidebar{display:none}
+  #sidebar.open{display:block}
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+#topbar{
+  position:sticky; top:0; z-index:40; height:var(--topbar-h);
+  display:flex; align-items:center; gap:12px;
+  padding:0 clamp(16px,4vw,40px);
+  background:rgba(255,255,255,.9); backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+#topbar .crumb{font-size:13.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+#topbar .crumb b{color:var(--ink);font-weight:700}
+#topbar .spacer{flex:1}
+.iconbtn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  height:32px;padding:0 11px;border:1px solid var(--line);background:#fff;
+  border-radius:8px;cursor:pointer;color:var(--ink-2);font:600 12.5px/1 var(--font);
+  text-decoration:none;
+}
+.iconbtn:hover{border-color:var(--blue-line);color:var(--blue-d);text-decoration:none}
+#menubtn{display:none}
+@media(max-width:860px){#menubtn{display:inline-flex}}
+@media(max-width:540px){#topbar .iconbtn.hide-sm{display:none}}
+
+/* ---------------- 侧栏 ---------------- */
+
+#sidebar{
+  position:sticky; top:var(--topbar-h); align-self:start;
+  height:calc(100vh - var(--topbar-h)); overflow-y:auto;
+  padding:22px 14px 48px 20px; border-right:1px solid var(--line); background:var(--bg-2);
+}
+@media(max-width:860px){
+  #sidebar{position:fixed;top:var(--topbar-h);left:0;right:0;height:calc(100vh - var(--topbar-h));
+          z-index:50;background:#fff;border-right:0;padding:18px 16px 40px}
+}
+#sidebar .brand{display:block;padding:0 10px 15px;margin-bottom:8px;border-bottom:1px solid var(--line)}
+#sidebar .brand b{display:block;font-size:15.5px;letter-spacing:-.01em}
+#sidebar .brand span{font-size:12.5px;color:var(--ink-3)}
+#sidebar nav{display:flex;flex-direction:column;gap:1px}
+#sidebar .grp{
+  margin:15px 8px 5px; font-size:11.5px; font-weight:800; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-4);
+}
+#sidebar a{
+  display:flex; align-items:center; gap:9px;
+  padding:7px 10px; border-radius:8px; color:var(--ink-2);
+  font-size:14.5px; text-decoration:none; line-height:1.5;
+}
+#sidebar a:hover{background:var(--bg-3);color:var(--ink);text-decoration:none}
+#sidebar a.on{background:var(--blue-soft);color:var(--blue-d);font-weight:700}
+#sidebar a .n{
+  flex:none;width:20px;height:20px;border-radius:6px;background:#fff;border:1px solid var(--line);
+  font:800 11px/18px var(--mono);text-align:center;color:var(--ink-3);
+}
+#sidebar a.on .n{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* ---------------- 正文 ---------------- */
+
+#main{padding:clamp(22px,4vw,44px) clamp(18px,4vw,52px) 90px; min-width:0}
+#main article{max-width:760px}
+h1{font-size:clamp(26px,3.4vw,34px);line-height:1.3;margin:0 0 14px;letter-spacing:-.02em}
+h2{font-size:23px;line-height:1.4;margin:44px 0 14px;padding-top:6px;letter-spacing:-.01em}
+h2:first-of-type{margin-top:34px}
+h3{font-size:18px;line-height:1.5;margin:26px 0 8px}
+p{margin:0 0 14px}
+ul,ol{margin:0 0 14px;padding-left:1.35em}
+li{margin:0 0 6px}
+li > ul, li > ol{margin-top:6px}
+b,strong{font-weight:700}
+em{font-style:normal;background:linear-gradient(transparent 62%,var(--blue-soft) 62%);padding:0 2px}
+hr{border:0;border-top:1px solid var(--line);margin:38px 0}
+.lede{font-size:17px;color:var(--ink-2);line-height:1.8;margin-bottom:22px}
+.muted{color:var(--ink-3)}
+.small{font-size:13.5px}
+
+code{
+  font-family:var(--mono); font-size:.875em;
+  background:var(--code-bg); border:1px solid var(--code-line);
+  padding:.1em .38em; border-radius:5px; white-space:nowrap;
+}
+h2 code,h3 code,p code{font-size:.86em}
+
+/* ---------------- 代码块 ---------------- */
+
+.codeblock{position:relative;margin:0 0 18px}
+.codeblock .fn{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  font:600 12px/1 var(--mono); color:var(--ink-3); padding:0 2px 6px;
+}
+.codeblock .fn .tag{
+  font-family:var(--font); font-size:11px; font-weight:700; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--blue-d); background:var(--blue-soft);
+  border:1px solid var(--blue-line); padding:2px 7px; border-radius:999px;
+}
+pre{
+  margin:0; padding:14px 16px; overflow-x:auto; border:1px solid var(--code-line);
+  border-radius:10px; background:var(--code-bg);
+  font:13.5px/1.75 var(--mono); color:#222a44; tab-size:2;
+}
+pre code{background:none;border:0;padding:0;font-size:inherit;white-space:pre}
+pre .c{color:#8d97b3}          /* 注释 */
+pre .s{color:#0a7a52}          /* 字符串 */
+pre .k{color:#8b3fd0}          /* 关键字 */
+pre .n{color:#c2410c}          /* 数字 */
+.copy{
+  position:absolute;top:26px;right:8px;z-index:2;
+  border:1px solid var(--line);background:#fff;color:var(--ink-3);
+  font:600 11.5px/1 var(--font);padding:5px 9px;border-radius:7px;cursor:pointer;
+  opacity:0;transition:opacity .15s;
+}
+.codeblock:hover .copy,.copy:focus{opacity:1}
+.copy.done{color:var(--good);border-color:var(--good-line);background:var(--good-bg)}
+@media(hover:none){.copy{opacity:1}}
+
+/* ---------------- 提示框 ---------------- */
+
+.callout{
+  display:flex;gap:12px;margin:0 0 18px;padding:13px 16px;
+  border:1px solid var(--line);border-left-width:3px;border-radius:var(--radius);
+  background:var(--bg-2);font-size:15px;line-height:1.75;
+}
+.callout .ic{flex:none;font-size:15px;line-height:1.6}
+.callout .bd{min-width:0}
+.callout .bd > :last-child{margin-bottom:0}
+.callout .t{font-weight:800;display:block;margin-bottom:2px}
+.callout.tip{border-left-color:var(--blue);background:var(--blue-soft)}
+.callout.good{border-left-color:var(--good);background:var(--good-bg)}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.callout.danger{border-left-color:var(--bad);background:var(--bad-bg)}
+
+/* ---------------- 表格 ---------------- */
+
+.tw{overflow-x:auto;margin:0 0 18px;border:1px solid var(--line);border-radius:var(--radius)}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line-2);vertical-align:top;line-height:1.6}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);
+   background:var(--bg-2);font-weight:800;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td code,th code{white-space:nowrap}
+
+/* ---------------- 步骤 ---------------- */
+
+.steps{counter-reset:st;margin:0 0 20px;padding:0;list-style:none}
+.steps > li{counter-increment:st;position:relative;padding:0 0 0 40px;margin:0 0 16px}
+.steps > li::before{
+  content:counter(st);position:absolute;left:0;top:0;
+  width:25px;height:25px;border-radius:8px;background:var(--blue-soft);color:var(--blue-d);
+  border:1px solid var(--blue-line);font:800 12.5px/23px var(--mono);text-align:center;
+}
+.steps > li > p:first-child{margin-top:0}
+.steps > li > h3{margin:0 0 5px;font-size:16.5px}
+
+/* ---------------- 勾选清单 ---------------- */
+
+.checklist{list-style:none;padding:0;margin:0 0 16px;
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.checklist li{display:flex;gap:11px;align-items:flex-start;padding:10px 15px;margin:0;
+  border-bottom:1px solid var(--line-2);background:#fff;font-size:15px}
+.checklist li:last-child{border-bottom:0}
+.checklist input{margin:5px 0 0;width:16px;height:16px;accent-color:var(--blue);flex:none;cursor:pointer}
+.checklist label{cursor:pointer;flex:1;min-width:0}
+.checklist input:checked + label{color:var(--ink-4);text-decoration:line-through}
+.done-count{font-size:13.5px;color:var(--ink-3);margin:-6px 0 18px}
+
+/* ---------------- 卡片 ---------------- */
+
+.cards{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin:0 0 20px}
+.cards > *,.steps > li,.flow > *{min-width:0}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:15px 17px;background:var(--bg-2)}
+.card h3,.card h4{margin:0 0 5px;font-size:15.5px}
+.card p{font-size:14.5px;color:var(--ink-2);margin:0}
+.card p + p{margin-top:7px}
+.card .k{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--blue-d);display:block;margin-bottom:5px}
+.card.accent{background:var(--blue-soft);border-color:var(--blue-line)}
+
+/* ---------------- 流程条 ---------------- */
+
+.flow{display:flex;align-items:stretch;gap:8px;margin:0 0 18px}
+.flow .st{
+  flex:1;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 8px;text-align:center;font-size:14px;font-weight:700;line-height:1.45;
+}
+.flow .st small{display:block;font-weight:500;font-size:12px;color:var(--ink-3);margin-top:2px}
+.flow .ar{display:flex;align-items:center;color:var(--blue);font-size:16px;font-weight:800;flex:none}
+@media(max-width:720px){
+  .flow{flex-direction:column}
+  .flow .ar{justify-content:center;transform:rotate(90deg)}
+}
+
+/* ---------------- 演示框（iframe） ---------------- */
+
+.demo{
+  margin:0 0 18px; border:1px solid var(--line); border-radius:var(--radius);
+  overflow:hidden; background:var(--bg-2);
+}
+.demo .bar{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--line); background:#fff;
+  font-size:12.5px; color:var(--ink-3);
+}
+.demo .bar .dot{width:8px;height:8px;border-radius:50%;background:var(--pink);flex:none}
+.demo .bar b{color:var(--ink);font-weight:700}
+.demo .bar .spacer{flex:1}
+.demo .bar a{font-size:12px;font-weight:600}
+.demo iframe{display:block;width:100%;border:0;background:var(--bg-3)}
+.demo .cap{
+  padding:8px 12px;border-top:1px solid var(--line);background:#fff;
+  font-size:12.5px;color:var(--ink-3);line-height:1.6;
+}
+
+/* ---------------- 三层素材演示 ---------------- */
+
+.layers{
+  position:relative; width:100%; max-width:360px; margin:0 auto 8px;
+  aspect-ratio:811/792;
+}
+.layers img{position:absolute;inset:0;width:100%;height:100%}
+.layers .eye{width:auto;height:auto;inset:auto}   /* 眼睛用百分比定位，见下 */
+.layers .l-eye{
+  left:calc(154 / 811 * 100%); top:calc(156 / 792 * 100%);
+  width:calc(208 / 811 * 100%); height:auto;
+}
+.layers .r-eye{
+  left:calc(521 / 811 * 100%); top:calc(176 / 792 * 100%);
+  width:calc(188 / 811 * 100%); height:auto;
+}
+.layers .checker{
+  position:absolute; inset:0; border-radius:10px; z-index:-1;
+  background-image:
+    linear-gradient(45deg,#e9ecf5 25%,transparent 25%),
+    linear-gradient(-45deg,#e9ecf5 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#e9ecf5 75%),
+    linear-gradient(-45deg,transparent 75%,#e9ecf5 75%);
+  background-size:18px 18px; background-position:0 0,0 9px,9px -9px,-9px 0;
+  background-color:#fff;
+}
+.layers-wrap{position:relative;margin:0 0 10px}
+.toggles{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:0 0 6px;
+  font-size:13.5px;color:var(--ink-2)}
+.toggles label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.toggles input{accent-color:var(--pink);width:15px;height:15px}
+
+/* ---------------- 画布留白示意图 ---------------- */
+
+.padfig{
+  margin:0 0 18px;padding:18px 16px 12px;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--bg-2);
+}
+.padbox{position:relative;margin:0 auto;width:100%;max-width:380px;aspect-ratio:1.05;
+  border:2px dashed var(--blue-line);border-radius:8px;background:#fff}
+.padbox .sprite{
+  position:absolute;left:20%;right:20%;top:32%;bottom:16%;
+  border:2px solid var(--pink);border-radius:6px;
+  background:var(--pink-soft);display:flex;align-items:center;justify-content:center;
+  font:700 13px/1.4 var(--font);color:#c2185b;text-align:center;
+}
+.padbox span.lbl{
+  position:absolute;font:700 12px/1 var(--mono);color:var(--blue-d);
+  background:#fff;padding:1px 5px;border:1px solid var(--blue-line);border-radius:5px;
+}
+.padbox .t-lbl{left:6px;top:6px}
+.padbox .b-lbl{left:6px;bottom:6px}
+.padbox .x-lbl{right:6px;top:50%;transform:translateY(-50%)}
+.padfig .cp{font-size:12.5px;color:var(--ink-3);text-align:center;margin:8px 0 0}
+
+/* ---------------- 参数面板（可定制页） ---------------- */
+
+.panel{
+  border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-2);
+  padding:16px 18px;margin:0 0 18px;
+}
+.panel h3{margin:0 0 12px;font-size:15px}
+.row{display:flex;align-items:center;gap:10px;margin:0 0 11px;font-size:14px;color:var(--ink-2)}
+.row > label:first-child{flex:none;width:96px;color:var(--ink-2)}
+.row input[type=range]{flex:1;accent-color:var(--blue)}
+.row input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue)}
+.row .val{flex:none;width:52px;text-align:right;font:600 12.5px var(--mono);color:var(--ink-3)}
+.row select{flex:1;padding:5px 8px;border:1px solid var(--line);border-radius:7px;
+  background:#fff;font:inherit;font-size:13.5px;color:var(--ink)}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.presets button{
+  border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:8px;
+  padding:6px 11px;font:600 12.5px/1 var(--font);cursor:pointer;
+}
+.presets button:hover{border-color:var(--blue-line);color:var(--blue-d)}
+.presets button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* ---------------- 上下页 ---------------- */
+
+#pager{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:760px;margin:52px 0 0}
+#pager a{border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;
+  display:block;background:var(--bg-2);text-decoration:none}
+#pager a:hover{border-color:var(--blue-line);background:var(--blue-soft);text-decoration:none}
+#pager .lbl{font-size:11.5px;color:var(--ink-3);display:block;letter-spacing:.05em}
+#pager .ttl{font-size:15px;font-weight:700;color:var(--ink)}
+#pager .next{text-align:right;grid-column:2}
+#pager .empty{border:0;background:none;pointer-events:none}
+
+/* ---------------- 右侧页内目录 ---------------- */
+
+#toc{
+  position:sticky; top:var(--topbar-h); align-self:start;
+  max-height:calc(100vh - var(--topbar-h)); overflow-y:auto;
+  padding:34px 20px 40px 6px; font-size:13.5px;
+}
+#toc .h{font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-4);margin-bottom:9px}
+#toc a{display:block;padding:4px 0 4px 11px;color:var(--ink-3);border-left:2px solid var(--line)}
+#toc a:hover{color:var(--ink);text-decoration:none}
+#toc a.on{color:var(--blue-d);border-left-color:var(--blue);font-weight:700}
+#toc a.lv3{padding-left:23px;font-size:13px}
+
+/* ---------------- 页脚 ---------------- */
+
+.pagefoot{margin:44px 0 0;padding-top:18px;border-top:1px solid var(--line);
+  font-size:13.5px;color:var(--ink-3)}
+.pagefoot b{color:var(--ink-2)}
+
+/* ---------------- 桌宠（角落） ---------------- */
+
+
+@media print{
+  #sidebar,#topbar,#toc,#pager,.demo,.copy{display:none !important}
+  #shell{grid-template-columns:1fr}
+  #main{padding:0}
+}
+
+/* ---------------- 版本信息条 ---------------- */
+
+.meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 20px;
+  padding:10px 13px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-2)}
+.meta .tag{font-size:12px;font-weight:700;color:var(--ink-2);background:#fff;
+  border:1px solid var(--line);border-radius:999px;padding:3px 9px;line-height:1.5}
+.meta .tag.new{background:var(--pink-soft);border-color:#ffd0dd;color:#c2185b}
+.meta .dl{margin-left:auto;font-size:12.5px;font-weight:700}
+
+/* 完整文件代码块：给个高度上限，页面才好翻；复制按钮仍然复制全部 */
+.codeblock.full pre{max-height:620px;overflow:auto}
+.codeblock.full .fn span::after{content:"（可滚动，复制会复制全部）";font-weight:400;
+  color:var(--ink-4);margin-left:6px;font-family:var(--font);font-size:11px}
+
+/* ---------------- 附录页：可动手操作的小演示 ---------------- */
+
+.mini{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-2);
+  padding:14px 16px;margin:0 0 20px}
+.mini canvas{display:block;background:#fff;border:1px solid var(--line);
+  border-radius:8px;margin:0 auto 10px;max-width:100%}
+.mini .ctrls{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;
+  font-size:13px;color:var(--ink-2)}
+.mini .ctrls label{display:inline-flex;align-items:center;gap:7px}
+.mini .ctrls input[type=range]{accent-color:var(--blue);width:110px}
+.mini .ctrls input[type=checkbox]{accent-color:var(--blue);width:15px;height:15px}
+.mini .note2{font-size:12.5px;color:var(--ink-3);text-align:center;margin:8px 0 0}
+
+/* ---------------- 「这个概念不懂？」小卡片 ---------------- */
+
+.learn{display:flex;gap:10px;align-items:flex-start;margin:14px 0 18px;padding:10px 13px;
+  border:1px dashed var(--blue-line);border-radius:10px;background:var(--blue-soft);
+  font-size:13.5px;line-height:1.65;color:var(--ink-2)}
+.learn .ic{flex:none}
+.learn b{color:var(--ink)}
+.learn a{font-weight:700}
+
+/* ---------------- 术语表 ---------------- */
+
+dt{font-weight:800;margin-top:14px;font-size:15px}
+dt code{font-size:.86em}
+dd{margin:2px 0 0;padding-left:0;color:var(--ink-2);font-size:14.5px;line-height:1.7}
+
+/* ---------------- 行内高亮（代码里的关键片段） ---------------- */
+
+.hl{background:var(--pink-soft);border:1px solid #ffd0dd;border-radius:4px;
+  padding:0 3px;font-family:var(--mono);font-size:.86em;color:#b3245a}
