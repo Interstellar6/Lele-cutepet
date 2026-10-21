@@ -87,7 +87,8 @@
     '.lele-bubble.lele-below::after{bottom:auto;top:-8px;transform:rotate(225deg);border-radius:0 0 3px 0}',
     '.lele-dock{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);',
     'display:flex;gap:5px;opacity:0;visibility:hidden;transition:opacity .16s ease;pointer-events:auto}',
-    '.lele-root:hover .lele-dock,.lele-root.lele-dragging .lele-dock{opacity:1;visibility:visible}',
+    '.lele-root:hover .lele-dock,.lele-root.lele-dragging .lele-dock,',
+    '.lele-root.lele-hover .lele-dock{opacity:1;visibility:visible}',
     '.lele-dock button{border:1px solid rgba(90,80,120,.22);border-radius:999px;background:rgba(255,255,255,.94);',
     'color:#5a5470;font-size:11px;line-height:1;padding:5px 8px;cursor:pointer;font-family:inherit;',
     'box-shadow:0 2px 8px rgba(60,50,90,.14)}',
@@ -490,6 +491,20 @@
     });
     this.root.appendChild(dock);
     this.dock = dock;
+
+    /* 悬停宽限：按钮条浮在猫的上方，如果只靠 CSS :hover，
+       鼠标从猫身上移向按钮的那一瞬间就会离开悬停区 → 按钮条立刻隐藏 → 永远点不到。
+       这里用 280ms 的宽限，让鼠标有时间走过去。 */
+    var self2 = this, hideT = null;
+    var open = function () { clearTimeout(hideT); self2.root.classList.add('lele-hover'); };
+    var close = function () {
+      clearTimeout(hideT);
+      hideT = setTimeout(function () { self2.root.classList.remove('lele-hover'); }, 280);
+    };
+    this.hit.addEventListener('pointerenter', open);
+    this.hit.addEventListener('pointerleave', close);
+    dock.addEventListener('pointerenter', open);
+    dock.addEventListener('pointerleave', close);
   };
 
   LelePet.prototype.resize = function () {
