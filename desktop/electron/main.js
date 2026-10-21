@@ -7,7 +7,8 @@
 // 运行：npm start          （首次会 npm install electron）
 // 自检：npm run selftest   （打印窗口属性 + 页面状态 + 截图到 /tmp，然后退出）
 const {
-  app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell,
+  app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage,
+  Notification, globalShortcut,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -294,8 +295,7 @@ function handleDash(body) {
       break;
     case 'reload': petWin.webContents.reload(); break;
     case 'hide':
-      petWin.hide();
-      hideDashboard();
+      hidePetWindow();
       break;
     case 'close': hideDashboard(); break;
     case 'quit': app.quit(); break;
@@ -314,6 +314,33 @@ function goHome() {
 }
 
 /* ─────────────── 托盘 ─────────────── */
+
+function showPetWindow() {
+  if (!petWin || petWin.isDestroyed()) return;
+  if (!petWin.isVisible()) petWin.showInactive();
+  rebuildTrayMenu();
+  log('pet · shown');
+}
+
+function hidePetWindow() {
+  if (!petWin || petWin.isDestroyed()) return;
+  petWin.hide();
+  hideDashboard();
+  rebuildTrayMenu();
+  log('pet · hidden');
+  notify('乐乐藏起来了',
+    '点托盘图标「叫出来」，或再打开一次乐乐（也可以用 ' +
+    (process.platform === 'darwin' ? '⌘⌥L' : 'Ctrl+Alt+L') + '）');
+}
+
+function notify(title, body) {
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title, body, silent: true }).show();
+      log('notify · shown');
+    }
+  } catch (e) { log('notify · ERROR ' + e.message); }
+}
 
 function createTray() {
   let icon;
@@ -344,8 +371,7 @@ function rebuildTrayMenu() {
       label: petWin && petWin.isVisible() ? '藏起来' : '叫出来',
       click: () => {
         if (!petWin) return;
-        if (petWin.isVisible()) petWin.hide(); else petWin.showInactive();
-        rebuildTrayMenu();
+        if (petWin.isVisible()) hidePetWindow(); else showPetWindow();
       },
     },
     { type: 'separator' },
@@ -441,8 +467,7 @@ function handlePet(body) {
       break;
 
     case 'hide':
-      if (petWin) petWin.hide();
-      hideDashboard();
+      hidePetWindow();
       break;
 
     default:
@@ -518,6 +543,18 @@ const wantSelftest = process.argv.includes('--selftest');
 const wantDragtest = process.argv.includes('--dragtest');
 const wantDashtest = process.argv.includes('--dashtest');
 const wantPattest = process.argv.includes('--pattest');
+const wantHidetest = process.argv.includes('--hidetest');
+
+// 只允许一个实例：用户再打开一次 App（Finder / 桌面图标）就当作「叫出来」
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    log('second-instance · 又打开了一次 → 显示桌宠');
+    showPetWindow();
+  });
+}
 
 app.whenReady().then(() => {
   try { fs.unlinkSync(LOG); } catch (e) { /* 忽略 */ }
@@ -539,10 +576,28 @@ app.whenReady().then(() => {
     else if (b.cmd === 'dashReady') pushDashState();
   });
 
+  // 全局热键：即使托盘图标看不见也能把猫叫回来
+  try {
+    const accel = 'CommandOrControl+Alt+L';
+    const ok = globalShortcut.register(accel, () => {
+      if (petWin && petWin.isVisible()) hidePetWindow(); else showPetWindow();
+    });
+    log(`shortcut · ${accel} registered=${ok}`);
+  } catch (e) { log('shortcut · ERROR ' + e.message); }
+
   petWin.webContents.once('did-finish-load', () => {
     log('web · didFinish pet.html');
     if (wantSelftest) runSelftest();
     if (wantDragtest) setTimeout(runDragtest, 1200);
+    if (wantHidetest) setTimeout(() => {
+      selftest = true;
+      hidePetWindow();
+      log(`hidetest · 藏起来后 visible=${petWin.isVisible()}`);
+      setTimeout(() => {
+        log('hidetest · 现在再开一次 App（不带锁的实例会连上来，然后这里应该自己回来）');
+      }, 1200);
+    }, 1200);
+
     if (wantPattest) setTimeout(async () => {
       selftest = true;
       const t = async (tag, code) => {
@@ -610,6 +665,8 @@ app.whenReady().then(() => {
 
   app.on('window-all-closed', (e) => { e.preventDefault(); });   // 关窗不退出（托盘还在）
 });
+
+app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 
 app.on('before-quit', () => {
   clearTimeout(gazeTimer);

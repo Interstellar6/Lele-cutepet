@@ -76,6 +76,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     // MARK: 启动
 
+    /// 再次双击 App / 在 Finder 里点它 → 把藏起来的猫叫回来。
+    /// 没有这一步的话，用户点了「隐藏」之后就只剩菜单栏一个入口，很容易找不到。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        log("reopen · 重新打开 App → 显示桌宠")
+        showPet()
+        return false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? "".write(toFile: logPath, atomically: true, encoding: .utf8)   // 每次启动清空
         log("launch · screen=\(NSScreen.main?.frame.debugDescription ?? "nil")")
@@ -183,6 +191,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 if CommandLine.arguments.contains("--dragtest") { self.dragTest() }
                 if CommandLine.arguments.contains("--dashtest") { self.dashTest() }
                 if CommandLine.arguments.contains("--probe") { self.probeGaze() }
+                if CommandLine.arguments.contains("--hidetest") {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        self.panel.orderOut(nil)
+                        self.rebuildMenu()
+                        self.log("hidetest · 已藏起来 visible=\(self.panel.isVisible)")
+                        Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            self.log("hidetest · 现在双击 App（不给 -n）看会不会自己回来")
+                        }
+                    }
+                }
                 if CommandLine.arguments.contains("--dashshot") {
                     self.showDashboard()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
@@ -376,6 +395,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             panel.orderOut(nil)
             hideDashboard()
             rebuildMenu()
+            log("pet · hidden（仪表盘点了藏起来）")
+            Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
         case "close": hideDashboard()
         case "quit": NSApp.terminate(nil)
         default: break
@@ -547,11 +568,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         showDashboard()
     }
 
+    /// 把猫叫回桌面（菜单栏、热键、重新打开 App 都走这里）
+    private func showPet() {
+        guard let panel = panel else { return }
+        if !panel.isVisible { panel.orderFrontRegardless() }
+        panel.ignoresMouseEvents = false
+        rebuildMenu()
+        log("pet · shown")
+    }
+
     @objc private func toggleVisible() {
         if panel.isVisible {
             panel.orderOut(nil)
+            log("pet · hidden")
+            Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
         } else {
-            panel.orderFrontRegardless()
+            showPet()
         }
         rebuildMenu()
     }
@@ -685,6 +717,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         case "hide":
             panel.orderOut(nil)
             rebuildMenu()
+            log("pet · hidden（右键菜单）")
+            Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
 
         default:
             break
@@ -883,3 +917,75 @@ let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
 app.run()
+
+/* ────────────────────────────────────────────────────────────────
+   Hint —— 藏起来之后在屏幕上方弹一个几秒钟的小提示。
+   为什么需要它：一旦猫被藏起来，屏幕上就没有任何「乐乐」的痕迹了，
+   用户很容易以为程序退出了。提示里写明两个回来的入口。
+   ──────────────────────────────────────────────────────────────── */
+enum Hint {
+    private static var panel: NSPanel?
+
+    static func show(_ text: String, seconds: Double = 4.0) {
+        DispatchQueue.main.async {
+            panel?.orderOut(nil)
+
+            let label = NSTextField(labelWithString: text)
+            label.font = .systemFont(ofSize: 12.5, weight: .medium)
+            label.textColor = .white
+            label.alignment = .center
+            label.maximumNumberOfLines = 2
+            label.lineBreakMode = .byWordWrapping
+            label.sizeToFit()
+
+            let padX: CGFloat = 16, padY: CGFloat = 11
+            let w = min(max(label.frame.width + padX * 2, 180), 330)
+            let h = max(label.frame.height + padY * 2, 40)
+
+            let bg = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h))
+            bg.wantsLayer = true
+            bg.layer?.backgroundColor = NSColor(calibratedWhite: 0.12, alpha: 0.92).cgColor
+            bg.layer?.cornerRadius = 11
+            bg.layer?.masksToBounds = true
+
+            label.frame = NSRect(x: padX, y: padY, width: w - padX * 2, height: label.frame.height)
+            bg.addSubview(label)
+
+            let p = NSPanel(contentRect: NSRect(x: 0, y: 0, width: w, height: h),
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered, defer: false)
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.hasShadow = true
+            p.level = .statusBar
+            p.ignoresMouseEvents = true
+            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+            p.contentView = bg
+
+            if let screen = NSScreen.main {
+                let f = screen.visibleFrame
+                p.setFrameOrigin(NSPoint(x: f.midX - w / 2, y: f.maxY - h - 6))
+            }
+            p.alphaValue = 0
+            p.orderFrontRegardless()
+            if let fh = FileHandle(forWritingAtPath: "/tmp/lele-pet-desktop.log") {
+                fh.seekToEndOfFile()
+                fh.write("hint · shown \(Int(w))x\(Int(h))\n".data(using: .utf8)!)
+                fh.closeFile()
+            }
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.18
+                p.animator().alphaValue = 1
+            }, completionHandler: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+                    NSAnimationContext.runAnimationGroup({ ctx in
+                        ctx.duration = 0.45
+                        p.animator().alphaValue = 0
+                    }, completionHandler: { p.orderOut(nil) })
+                }
+            })
+
+            panel = p
+        }
+    }
+}

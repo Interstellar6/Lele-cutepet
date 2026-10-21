@@ -263,6 +263,31 @@ capture · /tmp/lele-window.png 656x888  角点 a=0.00 a=0.00 a=0.00 a=1.00</pre
           </table>
         </div>
 
+        <h2>藏起来之后怎么找回来</h2>
+        <div class="callout warn">
+          <div class="ic">🙈</div>
+          <div class="bd">
+            <span class="t">这是最容易让人以为「程序崩了」的地方</span>
+            点「藏起来」之后屏幕上就没有猫了，但程序还在跑。三个入口叫它回来：
+            <b>菜单栏 / 托盘 🐱 →「叫出来」</b>、<b>再双击一次 App</b>、<b>Ctrl+Alt+L</b>（mac 是 ⌘⌥L）。
+          </div>
+        </div>
+        <p>
+          藏起来的那一刻，屏幕上方还会弹一条 4 秒的小提示，直接把这两个入口写在上面：
+        </p>
+<div class="codeblock"><pre data-label="实现（Pet.swift）" class="lang-swift">// 再次双击 App → 把猫叫回来
+func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -&gt; Bool {
+    showPet()
+    return false
+}
+
+// 藏起来的瞬间给一条提示，否则用户以为程序没了
+Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")</pre></div>
+        <p class="muted small">
+          为什么专门为这个写一节：我第一次做的时候只留了菜单栏一个入口，
+          藏起来之后自己都愣了一下 —— 界面上没有任何线索。
+        </p>
+
         <h2>Windows / Linux：Electron 版（已经做好了）</h2>
         <p>
           macOS 那个壳用的是 AppKit，别的系统跑不了。所以又做了一个 Electron 版，

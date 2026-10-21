@@ -47,6 +47,16 @@ npm run dashtest     # 打开仪表盘 → 点「摸摸头」→ 检查猫有没
 网页那部分一行没改 —— `preload.js` 把 `window.webkit.messageHandlers.pet/dash`
 桥接成了 IPC，所以 `pet.html` / `dashboard.html` 和 mac 版共用。
 
+## 藏起来之后怎么找回来
+
+程序不会退出，只是把窗口藏了。三个入口：
+
+- **托盘图标** →「叫出来」（GNOME 要装 appindicator 扩展才看得到托盘）
+- **再运行一次** `npm start`（单实例锁会把你连到已经跑着的那个，并自动把它叫出来）
+- **`Ctrl+Alt+L`**（macOS 上 `⌘⌥L`）全局开关
+
+藏起来时会弹一条系统通知，写明这几条路。
+
 ## Linux 上的注意事项
 
 **透明需要合成器。** GNOME / KDE / Cinnamon / XFCE(开合成) 默认都有，没问题；
