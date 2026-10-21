@@ -47,10 +47,39 @@ npm run dashtest     # 打开仪表盘 → 点「摸摸头」→ 检查猫有没
 网页那部分一行没改 —— `preload.js` 把 `window.webkit.messageHandlers.pet/dash`
 桥接成了 IPC，所以 `pet.html` / `dashboard.html` 和 mac 版共用。
 
+## Windows：已经打包成 .exe
+
+`dist/LelePet-1.0.0-portable.exe`（约 69 MB）—— **便携版，双击即用**，
+不需要安装、不写注册表，只在 `%APPDATA%\乐乐桌宠\` 里存窗口位置和设置。
+
+自己重新打包：
+
+```bash
+npm install
+npm run pack:win          # 便携版单文件 exe
+npm run pack:win:nsis     # 安装版（开始菜单快捷方式、可卸载）
+```
+
+打包在 macOS 上也能做（electron-builder 会用 wine 处理图标和版本信息），
+产物在 `desktop/electron/dist/`。
+
+> **首次运行会被 SmartScreen 拦**：因为没有买代码签名证书，
+> Windows 会显示「Windows 已保护你的电脑」→ 点 **更多信息 → 仍要运行**。
+> 杀软偶尔也会误报（所有未签名的 Electron 程序都这样）。
+
+Windows 上和 mac 的差别只有三处：
+
+- 藏起来之后靠 **托盘图标**（左键开面板、双击叫回来）或 `Ctrl+Alt+L`，
+  没有 Dock 可用 —— 所以藏起来时还会弹一条系统通知写明入口。
+- 通知需要一个 AppUserModelID，已经设成 `local.lele.cutepet`，
+  否则会显示成 "electron.app.Electron"。
+- 透明窗口必须是 `resizable: false`（已经是），否则会变黑底。
+
 ## 藏起来之后怎么找回来
 
 程序不会退出，只是把窗口藏了。三个入口：
 
+- **Dock / 任务栏图标**：藏起来时 `app.dock?.show()` 会把图标亮出来，点它 → 单实例 `activate` → 叫回来
 - **托盘图标** →「叫出来」（GNOME 要装 appindicator 扩展才看得到托盘）
 - **再运行一次** `npm start`（单实例锁会把你连到已经跑着的那个，并自动把它叫出来）
 - **`Ctrl+Alt+L`**（macOS 上 `⌘⌥L`）全局开关

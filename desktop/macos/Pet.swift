@@ -10,6 +10,7 @@
 // 调试：./build.sh && "./build/乐乐桌宠.app/Contents/MacOS/LelePet" --selftest
 
 import Cocoa
+import Carbon.HIToolbox
 import WebKit
 
 // MARK: - 窗口
@@ -48,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     private var panel: PetPanel!
     private var web: WKWebView!
     private var status: NSStatusItem!
+    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyHandler: EventHandlerRef?
 
     private var petWidth: CGFloat = 220          // 页面里桌宠的显示宽度
     private var petSizeIndex = 1
@@ -92,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         log("step · after setActivationPolicy")
         buildPanel()
         buildMenu()
+        installHotKey()
         startTimers()
         startRoam()
 
@@ -192,13 +196,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 if CommandLine.arguments.contains("--dashtest") { self.dashTest() }
                 if CommandLine.arguments.contains("--probe") { self.probeGaze() }
                 if CommandLine.arguments.contains("--hidetest") {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        self.panel.orderOut(nil)
-                        self.rebuildMenu()
-                        self.log("hidetest · 已藏起来 visible=\(self.panel.isVisible)")
-                        Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            self.log("hidetest · 现在双击 App（不给 -n）看会不会自己回来")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                        self.hidePet(reason: "自检")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            self.log("hidetest · 现在再开一次 App（或按 ⌃⌥⌘L / 点 Dock）看会不会回来")
+                            // 顺手验证一下热键的处理函数（不经由系统事件）
+                            self.hotKeyPressed()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                self.log("hidetest · 热键后 visible=\(self.panel.isVisible)")
+                            }
                         }
                     }
                 }
@@ -392,11 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             rebuildMenu()
         case "reload": web.reload()
         case "hide":
-            panel.orderOut(nil)
-            hideDashboard()
-            rebuildMenu()
-            log("pet · hidden（仪表盘点了藏起来）")
-            Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
+            hidePet(reason: "仪表盘点藏起来")
         case "close": hideDashboard()
         case "quit": NSApp.terminate(nil)
         default: break
@@ -507,6 +509,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         status.button?.title = "🐱"
         status.button?.toolTip = "乐乐桌宠"
         rebuildMenu()
+        // 诊断：菜单栏图标到底有没有、多宽、在不在窗口里
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            let b = self.status.button
+            self.log("status · thickness=\(NSStatusBar.system.thickness) isVisible=\(self.status.isVisible) " +
+                     "len=\(self.status.length) width=\(b?.frame.width ?? -1) " +
+                     "title=\(b?.title ?? "nil") window=\(b?.window != nil) " +
+                     "screen=\(NSScreen.main?.frame.width ?? 0)x\(NSScreen.main?.frame.height ?? 0) " +
+                     "notch=\(NSScreen.main?.safeAreaInsets.top ?? 0)")
+        }
     }
 
     private func rebuildMenu() {
@@ -568,24 +579,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         showDashboard()
     }
 
-    /// 把猫叫回桌面（菜单栏、热键、重新打开 App 都走这里）
+    /// 藏起来时把 Dock 图标亮出来：菜单栏图标在带刘海的屏上可能被系统挤掉，
+    /// Dock 是不会被挤掉的，点它就回来了。
+    private func setDockVisible(_ on: Bool) {
+        let target: NSApplication.ActivationPolicy = on ? .regular : .accessory
+        guard NSApp.activationPolicy() != target else { return }
+        NSApp.setActivationPolicy(target)
+        if on { NSApp.activate(ignoringOtherApps: true) }
+        log("dock · policy=\(on ? "regular(显示图标)" : "accessory(隐藏图标)")")
+    }
+
+    /// 把猫叫回桌面（菜单栏、热键、Dock、重新打开 App 都走这里）
     private func showPet() {
         guard let panel = panel else { return }
         if !panel.isVisible { panel.orderFrontRegardless() }
         panel.ignoresMouseEvents = false
+        setDockVisible(false)
         rebuildMenu()
         log("pet · shown")
     }
 
-    @objc private func toggleVisible() {
-        if panel.isVisible {
-            panel.orderOut(nil)
-            log("pet · hidden")
-            Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
-        } else {
-            showPet()
-        }
+    private func hidePet(reason: String) {
+        panel.orderOut(nil)
+        hideDashboard()
+        setDockVisible(true)
         rebuildMenu()
+        log("pet · hidden（\(reason)）")
+        Hint.show("乐乐藏起来了\n点 Dock 里的猫叫回来，或点菜单栏 🐱（⌃⌥⌘L 也行）")
+    }
+
+    /// ⌃⌥⌘L：不依赖菜单栏、也不依赖 Dock 的兜底
+    func hotKeyPressed() {
+        log("hotkey · ⌃⌥⌘L")
+        if panel != nil && panel.isVisible { hidePet(reason: "热键") } else { showPet() }
+    }
+
+    private func installHotKey() {
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                                 eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { (_, _, userData) -> OSStatus in
+            guard let userData = userData else { return noErr }
+            Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue().hotKeyPressed()
+            return noErr
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &hotKeyHandler)
+
+        let id = EventHotKeyID(signature: OSType(0x4C454C45), id: 1)   // 'LELE'
+        let st = RegisterEventHotKey(UInt32(kVK_ANSI_L),
+                                     UInt32(cmdKey | optionKey | controlKey),
+                                     id, GetApplicationEventTarget(), 0, &hotKeyRef)
+        log("hotkey · ⌃⌥⌘L register=\(st == noErr ? "ok" : "失败(\(st))")")
+    }
+
+    @objc private func toggleVisible() {
+        if panel.isVisible { hidePet(reason: "菜单栏") } else { showPet() }
     }
 
     @objc private func changeSize(_ sender: NSMenuItem) { applySize(sender.tag) }
@@ -715,10 +761,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             showDashboard()
 
         case "hide":
-            panel.orderOut(nil)
-            rebuildMenu()
-            log("pet · hidden（右键菜单）")
-            Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")
+            hidePet(reason: "右键菜单")
 
         default:
             break

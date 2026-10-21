@@ -30,6 +30,14 @@ for f in lele-pet.js lele-skin.png lele-eye-l.png lele-eye-r.png lele.png lele-f
 done
 cp "$HERE/Info.plist" "$APP/Contents/Info.plist"
 
+# 生成 App 图标（藏起来时 Dock 里显示猫脸，是最好认的「叫回来」入口）
+ICONSET="$HERE/.build/lele.iconset"
+rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+for SZ in 16 32 64 128 256 512; do
+  sips -z $SZ $SZ "$ROOT/assets/lele.png" --out "$ICONSET/icon_${SZ}x${SZ}.png" >/dev/null 2>&1
+done
+iconutil -c icns "$ICONSET" -o "$RES/lele.icns" 2>/dev/null && echo "  icon ok" || echo "  icon 生成失败（不影响运行）"
+
 echo "▸ 编译（swiftc，几秒钟）"
 # 把编译中间产物放在本目录里：某些环境下 clang 的默认缓存目录不可写
 mkdir -p "$HERE/.build/tmp" "$HERE/.build/mc"

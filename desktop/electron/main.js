@@ -358,8 +358,9 @@ function createTray() {
   rebuildTrayMenu();
 
   if (process.platform === 'win32' || process.platform === 'linux') {
-    // 左键点托盘 = 打开仪表盘（Linux 上部分桌面只有菜单）
+    // 左键点托盘 = 打开仪表盘（Linux 上部分桌面只有菜单栏）
     tray.on('click', () => showDashboard());
+    tray.on('double-click', () => showPetWindow());
   }
 }
 
@@ -562,6 +563,10 @@ app.whenReady().then(() => {
 
   if (process.platform === 'darwin' && app.dock) app.dock.hide();   // mac 不占 Dock
 
+  // Windows：给通知和任务栏一个正经的 AppUserModelID，
+  // 否则系统通知会显示成 "electron.app.Electron"
+  if (process.platform === 'win32') app.setAppUserModelId('local.lele.cutepet');
+
   createPetWindow();
   createTray();
   startGaze();
@@ -663,7 +668,9 @@ app.whenReady().then(() => {
     }, 1200);
   });
 
-  app.on('window-all-closed', (e) => { e.preventDefault(); });   // 关窗不退出（托盘还在）
+  // 关掉所有窗口也不退出：托盘 / 热键还在，随时能叫回来。
+  // 注意：这个事件的回调没有参数，别写 e.preventDefault()。
+  app.on('window-all-closed', () => { log('app · window-all-closed（保持运行）'); });
 });
 
 app.on('will-quit', () => { globalShortcut.unregisterAll(); });

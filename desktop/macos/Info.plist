@@ -13,6 +13,7 @@
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <!-- 关键：不在 Dock 显示、菜单栏才出现 -->
   <key>LSUIElement</key><true/>
+  <key>CFBundleIconFile</key><string>lele</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSHumanReadableCopyright</key><string>本地自用</string>
 </dict>

@@ -9,9 +9,65 @@
     "start": "node prepare.js && electron .",
     "selftest": "node prepare.js && electron . --selftest",
     "dragtest": "node prepare.js && electron . --dragtest",
-    "dashtest": "node prepare.js && electron . --dashtest"
+    "dashtest": "node prepare.js && electron . --dashtest",
+    "pack:win": "node prepare.js && electron-builder --win portable --x64",
+    "pack:win:nsis": "node prepare.js && electron-builder --win nsis --x64",
+    "pack:dir": "node prepare.js && electron-builder --dir"
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "productName": "乐乐桌宠",
+  "build": {
+    "appId": "local.lele.cutepet",
+    "productName": "乐乐桌宠",
+    "copyright": "乐乐桌宠",
+    "files": [
+      "main.js",
+      "preload.js",
+      "web/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "LelePet-${version}-win-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "LelePet-${version}-portable.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "LelePet-${version}-setup.exe",
+      "shortcutName": "乐乐桌宠"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "icon": "build/icon.png"
+    }
   }
 }

@@ -11,3 +11,6 @@ desktop/macos/.build/
 # Electron 版
 desktop/electron/node_modules/
 desktop/electron/web/
+
+# 打包产物
+desktop/electron/dist/

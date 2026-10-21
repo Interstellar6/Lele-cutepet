@@ -263,30 +263,80 @@ capture · /tmp/lele-window.png 656x888  角点 a=0.00 a=0.00 a=0.00 a=1.00</pre
           </table>
         </div>
 
-        <h2>藏起来之后怎么找回来</h2>
+        <h2>Windows：直接给 .exe</h2>
+        <p>
+          同一份 Electron 代码打包成了**便携版单文件**，双击就能跑，不用装：
+        </p>
+<div class="codeblock"><pre data-label="终端">cd desktop/electron
+npm install
+npm run pack:win        # → dist/LelePet-1.0.0-portable.exe（约 69 MB）
+npm run pack:win:nsis   # 或者要安装版（开始菜单 + 可卸载）</pre></div>
+
+        <p>打包在 macOS 上也能做 —— electron-builder 用 wine 处理图标和版本信息：</p>
+<div class="codeblock"><pre data-label="打包日志">• packaging       platform=win32 arch=x64 electron=33.4.11
+• updating asar integrity executable resource  executablePath=dist/win-unpacked/乐乐桌宠.exe
+• building        target=portable file=dist/LelePet-1.0.0-portable.exe
+• downloaded      label=nsis-3.0.4.1.7z progress=100%</pre></div>
+
         <div class="callout warn">
-          <div class="ic">🙈</div>
+          <div class="ic">🪟</div>
           <div class="bd">
-            <span class="t">这是最容易让人以为「程序崩了」的地方</span>
-            点「藏起来」之后屏幕上就没有猫了，但程序还在跑。三个入口叫它回来：
-            <b>菜单栏 / 托盘 🐱 →「叫出来」</b>、<b>再双击一次 App</b>、<b>Ctrl+Alt+L</b>（mac 是 ⌘⌥L）。
+            <span class="t">Windows 上和 mac 只有三处不同</span>
+            ① 藏起来后靠 <b>托盘图标</b>（左键开面板、双击叫回）或 <b>Ctrl+Alt+L</b>，
+            没有 Dock；藏起来时会弹系统通知写明入口。<br>
+            ② 通知要 <code>app.setAppUserModelId()</code>，否则显示成 "electron.app.Electron"。<br>
+            ③ 透明窗口必须 <code>resizable:false</code>，否则黑底。
           </div>
         </div>
-        <p>
-          藏起来的那一刻，屏幕上方还会弹一条 4 秒的小提示，直接把这两个入口写在上面：
+
+        <p class="muted small">
+          没买代码签名证书，首次运行 Windows 会拦一下：点「更多信息 → 仍要运行」。
         </p>
-<div class="codeblock"><pre data-label="实现（Pet.swift）" class="lang-swift">// 再次双击 App → 把猫叫回来
-func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -&gt; Bool {
-    showPet()
-    return false
+
+        <h2>藏起来之后怎么找回来</h2>
+        <p>
+          点「藏起来」之后屏幕上就没有猫了，但程序还在跑。三个入口，从左到右越来越不依赖界面：
+        </p>
+        <table>
+          <tr><th>方式</th><th>怎么做的</th><th>可靠性</th></tr>
+          <tr>
+            <td><b>Dock 里的猫</b></td>
+            <td>藏起来的瞬间 <code>NSApp.setActivationPolicy(.regular)</code> 冒出图标，叫回来时切回 <code>.accessory</code></td>
+            <td>最稳 —— 菜单栏会被挤，Dock 不会</td>
+          </tr>
+          <tr>
+            <td><b>⌃⌥⌘L</b></td>
+            <td>Carbon <code>RegisterEventHotKey</code>，不需要辅助功能权限</td>
+            <td>稳，完全不依赖界面</td>
+          </tr>
+          <tr>
+            <td><b>菜单栏 🐱</b></td>
+            <td><code>NSStatusBar.system.statusItem</code></td>
+            <td>带刘海的屏幕 + 菜单栏挤满时可能被系统藏掉</td>
+          </tr>
+        </table>
+<div class="codeblock"><pre data-label="Pet.swift" class="lang-swift">private func hidePet(reason: String) {
+    panel.orderOut(nil)
+    hideDashboard()
+    NSApp.setActivationPolicy(.regular)   // 亮出 Dock 图标
+    Hint.show("乐乐藏起来了\n点 Dock 里的猫叫回来，或点菜单栏 🐱（⌃⌥⌘L 也行）")
 }
 
-// 藏起来的瞬间给一条提示，否则用户以为程序没了
-Hint.show("乐乐藏起来了\n点菜单栏 🐱 →「叫出来」，或再双击一次 App")</pre></div>
-        <p class="muted small">
-          为什么专门为这个写一节：我第一次做的时候只留了菜单栏一个入口，
-          藏起来之后自己都愣了一下 —— 界面上没有任何线索。
-        </p>
+private func showPet() {
+    panel.orderFrontRegardless()
+    NSApp.setActivationPolicy(.accessory) // 收回 Dock 图标
+}</pre></div>
+
+        <div class="callout danger">
+          <div class="ic">⚠️</div>
+          <div class="bd">
+            <span class="t">我自己踩的坑</span>
+            第一版只留了「菜单栏 🐱」一个入口。实测在 1920×1243、顶部安全区 37pt 的屏幕上，
+            状态栏图标虽然 <code>isVisible=true</code>、宽度 39pt，
+            <b>却可能被系统挤到看不见的地方</b> —— 猫一藏，界面上就再没有任何线索。
+            所以改成 <b>Dock 图标优先</b>：它能被挤掉的前提不存在。
+          </div>
+        </div>
 
         <h2>Windows / Linux：Electron 版（已经做好了）</h2>
         <p>
