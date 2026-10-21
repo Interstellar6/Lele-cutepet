@@ -83,6 +83,29 @@
     });
   }, 800);
 
+  /* ── 外壳调用（Electron 版）：不用注入脚本，走 IPC 推指令过来 ──
+     页面这边注册一个回调，外壳只负责 send。macOS 原生壳仍然用 evaluateJavaScript，
+     那段逻辑在下面，两边互不影响。 */
+  if (window.leleMain && window.leleMain.onCmd) {
+    window.leleMain.onCmd(function (m) {
+      if (!pet) return;
+      switch (m.cmd) {
+        case 'look': window.petLookAt(m.winLeft, m.winTop, m.mouseX, m.mouseY); break;
+        case 'size': pet.setSize(m.value); break;
+        case 'say': pet.say(m.text); break;
+        case 'volume': pet.setVolume(m.value); break;
+        case 'face': pet.face(m.dir); break;
+        case 'pat': pet.pat(m.force !== false); break;
+        case 'hop': pet.hop(); break;
+        case 'spin': pet.spin(); break;
+        case 'sleep': pet.sleep(); break;
+        case 'wake': pet.wake(); break;
+        case 'resize': if (pet._onResize) pet._onResize(); break;
+        default: break;
+      }
+    });
+  }
+
   /* ── 外壳调用：把真实鼠标位置喂进来 ──
      注意：不能靠 window.screenX / screenY 去换算 —— WKWebView 里这两个值是坏的
      （实测恒定返回 0 和屏幕高度）。所以窗口自己的位置由外壳一起送过来。

@@ -13,7 +13,14 @@ const {
 const path = require('path');
 const fs = require('fs');
 
-const LOG = '/tmp/lele-electron.log';
+const LOG = process.platform === 'win32'
+  ? require('path').join(require('os').tmpdir(), 'lele-electron.log')
+  : '/tmp/lele-electron.log';
+// 关键：主进程里任何未捕获异常在 Windows 上都会弹一个模态框，把整个程序卡住。
+// 这里兜住，只记日志，程序继续跑。
+process.on('uncaughtException', (err) => log('uncaught · ' + (err && err.stack || err)));
+process.on('unhandledRejection', (reason) => log('unhandled · ' + (reason && reason.stack || reason)));
+
 function log(line) {
   const s = line + '\n';
   try { fs.appendFileSync(LOG, s); } catch (e) { /* 忽略 */ }
@@ -21,6 +28,34 @@ function log(line) {
 }
 
 const WEB = path.join(__dirname, 'web');
+
+/** 给宠物页面发指令（IPC，不走 executeJavaScript —— 那个在 Electron 里会挂住） */
+let petCmdSeq = 0;
+function petCmd(cmd) {
+  if (!petWin || petWin.isDestroyed()) return;
+  try {
+    petWin.webContents.send('cmd', cmd);
+    if (++petCmdSeq % 200 === 0) log(`cmd · 已发送 ${petCmdSeq} 条`);
+  } catch (e) { log('cmd · ERROR ' + e.message); }
+}
+
+/** 数值兜底：NaN / undefined 直接当成没给 */
+function fin(v) {
+  if (typeof v === 'number' && isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim() !== '' && isFinite(Number(v))) return Number(v);
+  return null;
+}
+
+/** setPosition 只接受整数；收到 NaN 在 Windows 上会抛「conversion failure」并弹框卡死 */
+function safeSetPosition(win, x, y, tag) {
+  if (!win || win.isDestroyed()) return;
+  const nx = fin(x), ny = fin(y);
+  if (nx === null || ny === null) {
+    log(`msg · ${tag} 坐标无效 x=${x} y=${y}，已忽略`);
+    return;
+  }
+  win.setPosition(Math.round(nx), Math.round(ny));
+}
 const PRELOAD = path.join(__dirname, 'preload.js');
 
 let petWin = null;
@@ -44,6 +79,7 @@ let roamTarget = null;
 let roamDir = 1;
 let lastSaid = '';
 let lastState = 'idle';
+let lastPageSize = 0;   // 页面自己报上来的尺寸（用来验证「猫真的改了」）
 let selftest = false;
 
 /* ─────────────── 配置持久化 ─────────────── */
@@ -130,21 +166,13 @@ function createPetWindow() {
 
 function startGaze() {
   let ticks = 0;
-  // 关键：串行 —— 上一次 executeJavaScript 回来了才发下一次。
-  // 用 setInterval 硬发会排队堆积（页面越忙越积越多），最后把别的调用也堵住。
-  const loop = () => {
-    if (!petWin || petWin.isDestroyed()) return;
-    if (!petWin.isVisible()) { gazeTimer = setTimeout(loop, 120); return; }
+  gazeTimer = setInterval(() => {
+    if (!petWin || petWin.isDestroyed() || !petWin.isVisible()) return;
     const p = screen.getCursorScreenPoint();       // DIP 屏幕坐标（左上原点）
     const b = petWin.getBounds();
-    petWin.webContents.executeJavaScript(
-      `window.petLookAt && window.petLookAt(${b.x}, ${b.y}, ${p.x}, ${p.y})`
-    ).catch(() => {}).then(() => {
-      if (++ticks === 20) log('gaze · 20 次视线推送完成');
-      gazeTimer = setTimeout(loop, 45);
-    });
-  };
-  loop();
+    petCmd({ cmd: 'look', winLeft: b.x, winTop: b.y, mouseX: p.x, mouseY: p.y });
+    if (++ticks === 20) log('gaze · 20 次视线推送完成');
+  }, 45);
 }
 
 /* ─────────────── 点穿：鼠标不在猫身上就让点击穿到底下 ─────────────── */
@@ -193,7 +221,7 @@ function startRoam() {
     petWin.setPosition(Math.round(b.x + step), b.y);
     if (dir !== roamDir) {
       roamDir = dir;
-      petWin.webContents.executeJavaScript(`desktopPet.face(${dir})`).catch(() => {});
+      petCmd({ cmd: 'face', dir: dir });
     }
   }, 50);
 }
@@ -255,33 +283,29 @@ function dashPayload() {
 
 function pushDashState() {
   if (!dashWin || dashWin.isDestroyed()) return;
-  const t0 = Date.now();
-  dashWin.webContents.executeJavaScript(`window.dashUpdate && window.dashUpdate(${dashPayload()})`)
-    .then(() => log(`dash-state · 面板侧 ${Date.now() - t0}ms`))
-    .catch((e) => log(`dash-state · 面板侧 ERROR ${e.message}`));
+  try {
+    dashWin.webContents.send('dash-state', dashPayload());
+  } catch (e) { log('dash-state · ERROR ' + e.message); }
 }
 
 function handleDash(body) {
   const action = body.action;
   const val = body.value;
-  const js = (code) => petWin && !petWin.isDestroyed() && petWin.webContents.executeJavaScript(code).catch(() => {});
-
   switch (action) {
-    case 'pat': js('desktopPet.pat(true)'); break;
-    case 'hop': js('desktopPet.hop()'); break;
-    case 'spin': js('desktopPet.spin()'); break;
-    case 'sleep': js('desktopPet.sleep()'); break;
+    case 'pat': petCmd({ cmd: 'pat', force: true }); break;
+    case 'hop': petCmd({ cmd: 'hop' }); break;
+    case 'spin': petCmd({ cmd: 'spin' }); break;
+    case 'sleep': petCmd({ cmd: 'sleep' }); break;
     case 'say': {
       const lines = ['今天也要开心呀', '我在桌面上陪你', '记得喝水', '写代码辛苦了', '别熬夜太晚'];
-      const t = lines[Math.floor(Math.random() * lines.length)];
-      js(`desktopPet.say(${JSON.stringify(t)})`);
+      petCmd({ cmd: 'say', text: lines[Math.floor(Math.random() * lines.length)] });
       break;
     }
     case 'home': goHome(); break;
     case 'size': setPetSize(val); break;
     case 'sound':
       muted = val === false;
-      js(`desktopPet.setVolume(${muted ? 0 : 0.25})`);
+      petCmd({ cmd: 'volume', value: muted ? 0 : 0.25 });
       break;
     case 'roam':
       roamEnabled = !!val;
@@ -310,7 +334,7 @@ function goHome() {
   const p = defaultPosition(size);
   petWin.setBounds({ ...p, ...size });
   saveState({ x: p.x, y: p.y });
-  petWin.webContents.executeJavaScript("desktopPet.say('回来啦')").catch(() => {});
+  petCmd({ cmd: 'say', text: '回来啦' });
 }
 
 /* ─────────────── 托盘 ─────────────── */
@@ -395,7 +419,7 @@ function rebuildTrayMenu() {
       label: '静音', type: 'checkbox', checked: muted,
       click: (item) => {
         muted = item.checked;
-        if (petWin) petWin.webContents.executeJavaScript(`desktopPet.setVolume(${muted ? 0 : 0.25})`).catch(() => {});
+        petCmd({ cmd: 'volume', value: muted ? 0 : 0.25 });
       },
     },
     { type: 'separator' },
@@ -407,11 +431,13 @@ function rebuildTrayMenu() {
 
 function setPetSize(px) {
   if (!petWin) return;
-  petSize = Math.max(120, Math.min(340, Math.round(px || 220)));
+  const n = fin(px);
+  if (n === null) { log(`setSize · 收到无效值 ${JSON.stringify(px)}，忽略`); return; }
+  petSize = Math.max(120, Math.min(340, Math.round(n)));
   const size = windowSize(petSize);
   const b = petWin.getBounds();
   petWin.setBounds({ x: Math.round(b.x + (b.width - size.width) / 2), y: b.y, ...size });
-  petWin.webContents.executeJavaScript(`desktopPet.setSize(${petSize})`).catch(() => {});
+  petCmd({ cmd: 'size', value: petSize });
   saveState({ size: petSize });
   rebuildTrayMenu();
 }
@@ -421,21 +447,24 @@ function setPetSize(px) {
 function handlePet(body) {
   const cmd = body.cmd;
   switch (cmd) {
-    case 'dragStart':
-      dragging = true;
+    case 'dragStart': {
       setIgnoreMouse(false);
-      dragFrom = { x: body.x, y: body.y };
+      const dx0 = fin(body.x), dy0 = fin(body.y);
+      if (dx0 === null || dy0 === null) { log(`msg · dragStart 缺坐标 ${JSON.stringify(body)}`); return; }
+      dragging = true;
+      dragFrom = { x: dx0, y: dy0 };
       dragWin = petWin.getBounds();
-      log(`msg · dragStart ${Math.round(body.x)},${Math.round(body.y)}`);
+      log(`msg · dragStart ${Math.round(dx0)},${Math.round(dy0)}`);
       break;
+    }
 
-    case 'dragMove':
+    case 'dragMove': {
       if (!dragging || !dragFrom || !dragWin) return;
-      petWin.setPosition(
-        Math.round(dragWin.x + (body.x - dragFrom.x)),
-        Math.round(dragWin.y + (body.y - dragFrom.y))
-      );
+      const mx = fin(body.x), my = fin(body.y);
+      if (mx === null || my === null) { log(`msg · dragMove 缺坐标 ${JSON.stringify(body)}`); return; }
+      safeSetPosition(petWin, dragWin.x + (mx - dragFrom.x), dragWin.y + (my - dragFrom.y), 'dragMove');
       break;
+    }
 
     case 'dragEnd':
       dragging = false;
@@ -463,7 +492,7 @@ function handlePet(body) {
     case 'state':
       lastState = body.state || 'idle';
       lastSaid = body.said || '';
-      if (body.size) petSize = body.size;
+      if (fin(body.size) !== null) lastPageSize = body.size;
       if (dashWin) pushDashState();
       break;
 
@@ -573,12 +602,15 @@ app.whenReady().then(() => {
   startClickThrough();
   startRoam();
 
-  ipcMain.on('pet', (_e, body) => handlePet(body || {}));
+  ipcMain.on('pet', (_e, body) => {
+    try { handlePet(body || {}); } catch (err) { log('pet · handler ERROR ' + (err && err.stack || err)); }
+  });
   ipcMain.on('dash', (_e, body) => {
-    const b = body || {};
-    log(`ipc · dash ${JSON.stringify(b)}`);
-    if (b.cmd === 'dash') handleDash(b);
-    else if (b.cmd === 'dashReady') pushDashState();
+    try {
+      const b = body || {};
+      if (b.cmd === 'dash') handleDash(b);
+      else if (b.cmd === 'dashReady') pushDashState();
+    } catch (err) { log('dash · handler ERROR ' + (err && err.stack || err)); }
   });
 
   // 全局热键：即使托盘图标看不见也能把猫叫回来
@@ -659,7 +691,14 @@ app.whenReady().then(() => {
       const shown = await ev(dashWin, "document.getElementById('said').textContent", 'shown');
       log(`dashtest · 面板显示 ${shown}`);
 
+      // ④ 改大小：拖滑块到 180，验证「窗口变了 + 猫也变了」
       const sizeVal = await ev(dashWin, "(document.querySelector('input[type=range]')||{}).value", 'size');
+      await ev(dashWin, "(()=>{var s=document.querySelector('input[type=range]');s.value=180;s.dispatchEvent(new Event('input',{bubbles:true}));return s.value})()", 'slider');
+      await new Promise((r) => setTimeout(r, 1100));
+      const winW = petWin.getBounds().width;
+      const wantW = windowSize(180).width;
+      log(`dashtest · 改大小 → 窗口宽=${winW} 期望=${wantW} ${winW === wantW ? '✓' : '✗'}；` +
+          `页面自报 size=${lastPageSize} 期望=180 ${lastPageSize === 180 ? '✓ 通过' : '✗ 猫没跟着变'}`);
       log(`dashtest · 尺寸控件显示 ${sizeVal}`);
       const roamBox = await ev(dashWin, "Array.from(document.querySelectorAll('input[type=checkbox]')).map(function(b){return b.checked}).join(',')", 'roam');
       log(`dashtest · 散步开关 ${roamBox}`);

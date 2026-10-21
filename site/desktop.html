@@ -293,6 +293,45 @@ npm run pack:win:nsis   # 或者要安装版（开始菜单 + 可卸载）</pre>
           没买代码签名证书，首次运行 Windows 会拦一下：点「更多信息 → 仍要运行」。
         </p>
 
+        <h2>一个只在 Windows 上出现的 bug</h2>
+        <p>
+          表现：拖「大小」滑块，<b>窗口变了，猫没变</b>。而且在 Windows 上会弹一个
+          <code>TypeError: conversion failure</code> 的框。
+        </p>
+        <p>链路是这样的：</p>
+<div class="codeblock"><pre data-label="日志">handlePet → setPosition(NaN, y)   ← 坐标算成了 NaN
+  ↑ 抛未捕获异常
+Windows 弹出模态错误框 → 主进程被卡住
+  ↑
+之后所有 executeJavaScript 排在队尾 → 静默不执行（猫当然没改）</pre></div>
+
+        <p>
+          修法是<b>别再用注入脚本的方式驱动页面</b>，改成 IPC 推指令；再加两层保险：
+        </p>
+<div class="codeblock"><pre data-label="main.js" class="lang-js">// ① 指令走 IPC，不注入脚本
+petWin.webContents.send('cmd', { cmd: 'size', value: 180 });
+
+// ② 坐标进 setPosition 前校验，NaN 直接丢弃
+function safeSetPosition(win, x, y, tag) {
+  const nx = fin(x), ny = fin(y);
+  if (nx === null || ny === null) { log(`${tag} 坐标无效`); return; }
+  win.setPosition(Math.round(nx), Math.round(ny));
+}
+
+// ③ 主进程兜底，不让模态框卡死程序
+process.on('uncaughtException', (err) =&gt; log('uncaught · ' + err.stack));</pre></div>
+
+        <div class="callout warn">
+          <div class="ic">🧪</div>
+          <div class="bd">
+            <span class="t">这类 bug 的教训：加了断言才算修好</span>
+            现在 <code>--dashtest</code> 会真的去拖滑块，然后同时检查
+            <b>窗口宽度</b> 和 <b>页面自己报上来的 size</b>：
+            <code>窗口宽=272 期望=272 ✓；页面自报 size=180 期望=180 ✓</code>。
+            两个都变才算数 —— 只查窗口的话，正好会漏掉这次的问题。
+          </div>
+        </div>
+
         <h2>藏起来之后怎么找回来</h2>
         <p>
           点「藏起来」之后屏幕上就没有猫了，但程序还在跑。三个入口，从左到右越来越不依赖界面：

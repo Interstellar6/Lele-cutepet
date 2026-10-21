@@ -173,6 +173,11 @@
     b.addEventListener('click', function () { send({ cmd: 'dash', action: b.dataset.a }); });
   });
 
+  /* Electron 壳：状态推到 IPC 通道上（macOS 原生壳仍然直接调 window.dashUpdate） */
+  if (window.leleMain && window.leleMain.onDash) {
+    window.leleMain.onDash(function (json) { window.dashUpdate(json); });
+  }
+
   /* ── 滑块：拖动时实时改，松手才写配置 ── */
   var size = $('size'), sizeVal = $('sizeVal');
   size.addEventListener('input', function () {

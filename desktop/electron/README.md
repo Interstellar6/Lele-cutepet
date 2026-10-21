@@ -86,6 +86,30 @@ Windows 上和 mac 的差别只有三处：
 
 藏起来时会弹一条系统通知，写明这几条路。
 
+## 为什么外壳不往页面里注入脚本
+
+第一版是 `webContents.executeJavaScript('desktopPet.setSize(180)')`，在 mac 上跑得好好的，
+到了 Windows 就出现「窗口变了、猫没变」—— 因为：
+
+1. `handlePet` 里有一处把坐标算成了 `NaN`，`win.setPosition(NaN, y)` 抛异常；
+2. Windows 上主进程的未捕获异常会**弹一个模态框**，把整个进程卡住；
+3. 之后所有 `executeJavaScript` 都排在那个卡住的队列后面 —— 静默不执行。
+
+现在的做法：
+
+```js
+// 外壳 → 页面：走 IPC，不注入脚本
+petWin.webContents.send('cmd', { cmd: 'size', value: 180 });
+
+// 页面自己注册回调（preload 用 contextBridge 暴露）
+window.leleMain.onCmd((m) => { if (m.cmd === 'size') pet.setSize(m.value); });
+```
+
+另外两层保险：
+
+- `process.on('uncaughtException')` 兜住一切，只记日志，不让模态框卡住程序；
+- 所有坐标进 `setPosition` 前用 `fin()` 校验，NaN 一律丢弃并记日志。
+
 ## Linux 上的注意事项
 
 **透明需要合成器。** GNOME / KDE / Cinnamon / XFCE(开合成) 默认都有，没问题；
