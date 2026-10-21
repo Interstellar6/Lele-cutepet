@@ -68,6 +68,21 @@
     onSay: function (text) { send({ cmd: 'said', text: text }); }
   });
 
+  /* 每 800ms 主动把状态报给外壳。
+     外壳不该反过来往页面里注入脚本查状态 ——
+     在 Electron 里那样会因为主进程/渲染进程排队而卡住，
+     这里由页面主动推，两端都省事。 */
+  setInterval(function () {
+    if (!pet || !pet.ready) return;
+    send({
+      cmd: 'state',
+      state: pet.state,
+      said: pet.bubbleEl && pet.bubbleEl.classList.contains('lele-on')
+        ? pet.bubbleEl.textContent : '',
+      size: pet.w
+    });
+  }, 800);
+
   /* ── 外壳调用：把真实鼠标位置喂进来 ──
      注意：不能靠 window.screenX / screenY 去换算 —— WKWebView 里这两个值是坏的
      （实测恒定返回 0 和屏幕高度）。所以窗口自己的位置由外壳一起送过来。

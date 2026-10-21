@@ -263,29 +263,59 @@ capture · /tmp/lele-window.png 656x888  角点 a=0.00 a=0.00 a=0.00 a=1.00</pre
           </table>
         </div>
 
-        <h2>Windows / Linux 怎么办</h2>
+        <h2>Windows / Linux：Electron 版（已经做好了）</h2>
         <p>
-          同一套网页直接塞进 Electron，主进程核心就这几行 ——
-          <b>网页部分一行都不用改</b>（因为拖拽已经做成「交出去」的模式）：
+          macOS 那个壳用的是 AppKit，别的系统跑不了。所以又做了一个 Electron 版，
+          代码在 <code>desktop/electron/</code>，<b>网页部分一行都没改</b>。
         </p>
-<div class="codeblock"><pre data-label="electron/main.js" class="lang-js">const win = new BrowserWindow({
-  width: 360, height: 460,
-  transparent: true, frame: false, hasShadow: false,
-  alwaysOnTop: true, resizable: false, skipTaskbar: true,
-  focusable: false,                      // 不抢焦点
-  webPreferences: { preload: path.join(__dirname, 'preload.js') }
-});
-win.setAlwaysOnTop(true, 'screen-saver');            // 压在普通窗口上面
-win.setIgnoreMouseEvents(true, { forward: true });   // 点穿，按 hitArea 动态开关
-win.loadFile('web/pet.html');</pre></div>
-        <p class="muted small">
-          preload 里把 <code>window.webkit.messageHandlers.pet</code> 换成 <code>ipcRenderer.send</code>，
-          主进程收到 <code>dragMove</code> 就 <code>win.setPosition()</code>。
+<div class="codeblock"><pre data-label="终端">cd desktop/electron
+npm install     # 第一次下载 Electron（约 100MB）
+npm start</pre></div>
+
+        <p>
+          能不改网页，靠的是 <code>preload.js</code> 把
+          <code>window.webkit.messageHandlers.pet/dash</code> 桥接成 IPC：
+        </p>
+<div class="codeblock"><pre data-label="preload.js" class="lang-js">const { contextBridge, ipcRenderer } = require('electron');
+
+const chan = (name) => ({ postMessage: (msg) => ipcRenderer.send(name, msg) });
+
+contextBridge.exposeInMainWorld('webkit', {
+  messageHandlers: { pet: chan('pet'), dash: chan('dash') },
+});</pre></div>
+
+        <table>
+          <tr><th>功能</th><th>macOS 原生壳</th><th>Electron 壳</th></tr>
+          <tr><td>透明窗口</td><td><code>_setDrawsBackground(false)</code></td><td><code>transparent:true</code> + <code>frame:false</code></td></tr>
+          <tr><td>总在最前</td><td><code>panel.level = .floating</code></td><td><code>setAlwaysOnTop(true,'screen-saver')</code></td></tr>
+          <tr><td>点穿</td><td><code>panel.ignoresMouseEvents</code></td><td><code>setIgnoreMouseEvents</code></td></tr>
+          <tr><td>视线</td><td><code>NSEvent.mouseLocation</code></td><td><code>screen.getCursorScreenPoint()</code></td></tr>
+          <tr><td>拖拽</td><td><code>panel.setFrameOrigin</code></td><td><code>win.setPosition</code></td></tr>
+          <tr><td>仪表盘</td><td>第二个 <code>NSPanel</code></td><td>第二个 <code>BrowserWindow</code></td></tr>
+          <tr><td>体积</td><td>约 1 MB</td><td>约 200 MB（自带 Chromium）</td></tr>
+        </table>
+
+        <div class="callout warn">
+          <div class="ic">🐧</div>
+          <div class="bd">
+            <span class="t">Linux 上会踩的四个坑</span>
+            <b>① 透明要合成器</b>：GNOME / KDE 默认有；纯 X11 裸窗口管理器（i3 不配 picom）会看到黑底。<br>
+            <b>② 托盘</b>：GNOME 要装 <code>gnome-shell-extension-appindicator</code>，否则看不到托盘图标
+            （右键猫猫仍可开面板）。<br>
+            <b>③ Wayland</b>：默认走 XWayland 一切正常；用原生 Wayland
+            （<code>ELECTRON_OZONE_PLATFORM_HINT=auto</code>）时<b>点穿可能失效</b>。<br>
+            <b>④ <code>ELECTRON_RUN_AS_NODE=1</code></b>（VS Code 终端里常见）会让 Electron 当普通 Node 跑，
+            报 <code>app is undefined</code> —— <code>env -u ELECTRON_RUN_AS_NODE npx electron .</code>。
+          </div>
+        </div>
+
+        <p>
+          自检和 mac 版一一对应：<code>npm run selftest</code> / <code>dragtest</code> / <code>dashtest</code>。
         </p>
 
         <h2>已知限制</h2>
         <ul>
-          <li><b>只支持 macOS</b>（用了 AppKit + WKWebView）；Windows/Linux 走上面的 Electron 路线。</li>
+          <li><b>原生壳只支持 macOS</b>（用了 AppKit + WKWebView）；Windows/Linux 用上一节的 Electron 版（已有，可直接跑）。</li>
           <li>透明依赖私有 selector <code>_setDrawsBackground:</code>，系统大版本升级后可能改名。
             真变了也不致命 —— 会退化成白底窗口，日志里的 <code>web.isOpaque</code> 会立刻告诉你。</li>
           <li>只是 <b>ad-hoc 签名</b>（本机自用）。拷到别的 Mac 上首次打开，要在

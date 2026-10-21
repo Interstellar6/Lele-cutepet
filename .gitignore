@@ -7,3 +7,7 @@ desktop/macos/.build/
 .debug/
 
 .DS_Store
+
+# Electron 版
+desktop/electron/node_modules/
+desktop/electron/web/

@@ -206,28 +206,41 @@ gaze · 20 次视线推送完成（鼠标位置已送达页面）
   「系统设置 → 隐私与安全性」里点「仍要打开」。
 - 不抢焦点 = 不支持键盘输入（回车逗它那套在网页版里有效，桌面版只认鼠标）。
 
-## 想要 Windows / Linux
+## Windows / Linux
 
-同一套网页（`pet.html` + `assets/`）可以直接塞进 Electron，主进程大概就这几行：
+**已经做好了**，在 `desktop/electron/`：
 
-```js
-// electron/main.js
-const win = new BrowserWindow({
-  width: 360, height: 460,
-  transparent: true,      // 透明窗口
-  frame: false,           // 无边框
-  hasShadow: false,
-  alwaysOnTop: true,
-  resizable: false,
-  skipTaskbar: true,
-  focusable: false,       // 不抢焦点（Windows 上更稳）
-  webPreferences: { preload: path.join(__dirname, 'preload.js') }
-});
-win.setAlwaysOnTop(true, 'screen-saver');           // 压在普通窗口上面
-win.setIgnoreMouseEvents(true, { forward: true });  // 点穿，配合 hitArea 动态开关
-win.loadFile('web/pet.html');
+```bash
+cd desktop/electron
+npm install     # 第一次下载 Electron（约 100MB）
+npm start
 ```
 
-preload 里把 `window.webkit.messageHandlers.pet` 换成 `ipcRenderer.send`，
-把 `ipcMain` 收到的 `dragStart/dragMove` 换成 `win.setPosition(x, y)` 即可。
-网页部分**一行都不用改** —— 这就是把拖拽做成 `dragMode: 'external'` 的原因。
+同一套网页（`pet.html` + `dashboard.html` + `assets/`），网页部分**一行都没改** ——
+`preload.js` 把 `window.webkit.messageHandlers.pet/dash` 桥接成了 IPC，
+所以两个平台的壳共用同一份界面。
+
+对照一下两边的实现：
+
+| 功能 | macOS 原生壳 | Electron 壳 |
+| --- | --- | --- |
+| 透明窗口 | `NSWindow` + `_setDrawsBackground(false)` | `transparent:true` + `frame:false` |
+| 总在最前 | `panel.level = .floating` | `setAlwaysOnTop(true, 'screen-saver')` |
+| 点穿 | `panel.ignoresMouseEvents`（30Hz） | `setIgnoreMouseEvents`（33Hz） |
+| 视线跟随 | `NSEvent.mouseLocation` → `evaluateJavaScript` | `screen.getCursorScreenPoint()` → `executeJavaScript` |
+| 拖拽 | `panel.setFrameOrigin` | `win.setPosition` |
+| 仪表盘 | 第二个 `NSPanel` | 第二个 `BrowserWindow` |
+| 托盘 | `NSStatusItem` | `Tray` |
+| 体积 | 约 1 MB | 约 200 MB（自带 Chromium） |
+
+自检命令和 mac 版一一对应：
+
+```bash
+npm run selftest   # 窗口属性 + 页面状态 + 截图
+npm run dragtest   # 合成拖拽，验证位移
+npm run dashtest   # 开面板 → 点摸摸头 → 验证猫的反应和面板同步
+```
+
+Linux 的几个坑（合成器、GNOME 托盘扩展、Wayland 下点穿失效、
+`ELECTRON_RUN_AS_NODE` 导致 `app` 为 undefined）都写在
+[`electron/README.md`](electron/README.md) 里。

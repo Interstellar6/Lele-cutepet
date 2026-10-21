@@ -1,0 +1,17 @@
+{
+  "name": "lele-pet-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "乐乐桌宠 · 桌面版（Electron，支持 Linux / Windows / macOS）",
+  "main": "main.js",
+  "scripts": {
+    "prepare:web": "node prepare.js",
+    "start": "node prepare.js && electron .",
+    "selftest": "node prepare.js && electron . --selftest",
+    "dragtest": "node prepare.js && electron . --dragtest",
+    "dashtest": "node prepare.js && electron . --dashtest"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

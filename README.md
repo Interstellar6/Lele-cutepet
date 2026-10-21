@@ -8,8 +8,9 @@
 
 ![预览](preview.png)
 
-**它不止是个网页**：`desktop/` 里有一个 1MB 的原生 macOS 小窗 —— 透明、总在最前、
+**它不止是个网页**：`desktop/` 里有真正贴在桌面上的小窗 —— 透明、总在最前、
 点它不抢焦点、眼睛跟着真实光标、右键弹出仪表盘（摸头/蹦/转圈/睡觉/说话/回到桌上/大小/散步/音效/置顶）。
+macOS 用原生壳（1MB，`desktop/macos/`），Linux / Windows 用 Electron 壳（`desktop/electron/`）。
 详见 [desktop/README.md](desktop/README.md)。
 
 ![仪表盘](desktop/dashboard.png)
@@ -44,7 +45,8 @@
 想放到桌面上（macOS）：
 
 ```bash
-cd desktop/macos && ./build.sh && open build/乐乐桌宠.app
+cd desktop/macos && ./build.sh && open build/乐乐桌宠.app     # macOS
+cd desktop/electron && npm install && npm start               # Linux / Windows
 ```
 
 > 也可以完全不用服务器：直接双击 `index.html` 也能玩。
@@ -193,7 +195,8 @@ assets/
   lele-fallback.jpg         原图（素材全挂了时的静态兜底立绘）
   lele-original.jpg         原始表情包（资料，不参与运行）
   lele-sprite.json          精灵与眼睛几何（由构建脚本生成）
-desktop/                    桌面版（macOS 原生壳，零依赖）
+desktop/macos/              桌面版 · macOS 原生壳（Swift + AppKit，1MB，零依赖）
+desktop/electron/           桌面版 · Linux / Windows / macOS（Electron）
   README.md                 透明窗口 / 不抢焦点 / 点穿 / 拖拽怎么做的
   macos/
     Pet.swift               外壳：透明浮窗 + 仪表盘 + 菜单栏 + 拖拽 + 视线推送 + 散步
